@@ -1,0 +1,52 @@
+/* Two-stage parallel reduction based on the "Simple Reductions" OpenCL
+   optimization case study on the AMD Developer Central website */
+
+/* The kernel should be called defining TYPE as the input/output data type,
+   OP(acc, el) as the operator and OP_NULL as the null item for the operator
+   (e.g. 0 for sum). Also, SMALL_WORKGROUP should be define if the worgroup
+   size matches the device warp/wavefront size */
+
+#ifndef TYPE
+#define TYPE float
+#endif
+
+#ifndef OP
+#define OP(acc, el) acc = fmin(acc, el);
+#define OP_NULL NAN
+#endif
+
+
+__kernel void reduce(__global const TYPE* restrict input,
+		__local volatile TYPE* restrict scratch,
+		uint numels,
+		__global TYPE* restrict output)
+{
+	uint gid = get_global_id(0);
+	uint stride = get_global_size(0);
+	TYPE acc = OP_NULL;
+	while (gid < numels) {
+		TYPE el = input[gid];
+		OP(acc, el);
+		gid += stride;
+	}
+
+	uint lid = get_local_id(0);
+	scratch[lid] = acc;
+#ifndef SMALL_WORKGROUP
+	barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+	for (uint offset = get_local_size(0)/2; offset; offset >>= 1) {
+		if (lid < offset) {
+			TYPE other = scratch[lid+offset];
+			TYPE me = scratch[lid];
+			OP(me, other);
+			scratch[lid] = me;
+		}
+#ifndef SMALL_WORKGROUP
+		barrier(CLK_LOCAL_MEM_FENCE);
+#endif
+	}
+
+	if (lid == 0)
+		output[get_group_id(0)] = scratch[0];
+}
