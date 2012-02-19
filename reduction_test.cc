@@ -34,6 +34,16 @@ cl_event pass_evt[2];
 			double(endTime-startTime)/1000000); \
 	} while (0);
 
+#define GET_RUNTIME_DELTA(evt1, evt2, text) do {\
+	clGetEventProfilingInfo(evt1, CL_PROFILING_COMMAND_START, \
+			sizeof(cl_ulong), &startTime, NULL);\
+	error = clGetEventProfilingInfo(evt2, CL_PROFILING_COMMAND_END,\
+			sizeof(cl_ulong), &endTime, NULL); \
+	check_ocl_error(error, "getting profiling info"); \
+	printf(text " runtime: %gms\n", \
+			double(endTime-startTime)/1000000); \
+	} while (0);
+
 /* macro to set the next kernel argument */
 #define KERNEL_ARG(what) do {\
 	error = clSetKernelArg(reduceKernel, argnum++, sizeof(what), &(what)); \
@@ -466,6 +476,7 @@ int main(int argc, char **argv) {
 		printf("Group size: %zu\n", ws);
 		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
 		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
+		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
 	}
 
 	/* copy memory down */
