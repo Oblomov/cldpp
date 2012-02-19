@@ -2,5 +2,7 @@
 card,bandwidth,groups,group size,cu,groups/cu
 
 GeForce 9600M GT,11.62 GB/s,24,128,4,6
-Radeon HD 6970,133.7 GB/s,168,128,24,7
 Tesla C2075,88.11 GB/s,896,512,14,64
+GeForce GTX 480,148.3 GB/s,90,512,15,6
+
+Radeon HD 6970,133.7 GB/s,168,128,24,7
