@@ -421,7 +421,7 @@ int main(int argc, char **argv) {
 		GET_RUNTIME(mem_evt[0], "memory upload");
 	}
 
-	for (size_t ws = ws_multiple ; ws <= max_wg_size; ws += ws_multiple) {
+	for (size_t ws = ws_multiple ; ws <= max_wg_size; ws *= 2) {
 		group_size[0] = ws;
 		work_size[0] = group_size[0]*options.groups;
 
