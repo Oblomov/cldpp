@@ -477,6 +477,7 @@ int main(int argc, char **argv) {
 		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
 		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
 		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
+		printf("Bandwidth: %.4g GB/s\n", double(data_size)/(endTime-startTime));
 	}
 
 	/* copy memory down */
