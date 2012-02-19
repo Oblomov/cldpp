@@ -1,0 +1,6 @@
+# Optimal reduction kernel performance (fmin/float) by device
+card,bandwidth,groups,group size,cu,groups/cu
+
+GeForce 9600M GT,11.62 GB/s,24,128,4,6
+Radeon HD 6970,133.7 GB/s,168,128,24,7
+Tesla C2075,88.11 GB/s,896,512,14,64
