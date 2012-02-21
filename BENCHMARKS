@@ -1,7 +1,7 @@
 # Optimal reduction kernel performance (fmin/float) by device
 card,bandwidth,groups,group size,cu,groups/cu
 
-GeForce 9600M GT,11.62 GB/s,24,128,4,6
+GeForce 9600M GT,11.68 GB/s,24,128,4,6
 Tesla C2075 (ECC on),87.71 GB/s,84,256,14,6
 Tesla C2075 (ECC on),87.72 GB/s,84,512,14,6
 Tesla C2075 (ECC on),88.11 GB/s,896,512,14,64

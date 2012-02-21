@@ -31,19 +31,18 @@ __kernel void reduce(__global const TYPE* restrict input,
 	}
 
 	uint lid = get_local_id(0);
-	scratch[lid] = acc;
 	for (uint offset = get_local_size(0)/2; offset; offset >>= 1) {
+		if (lid >= offset && lid < 2*offset)
+			scratch[lid - offset] = acc;
 #ifndef SMALL_WORKGROUP
 		barrier(CLK_LOCAL_MEM_FENCE);
 #endif
 		if (lid < offset) {
-			TYPE other = scratch[lid+offset];
-			TYPE me = scratch[lid];
-			OP(me, other);
-			scratch[lid] = me;
+			TYPE other = scratch[lid];
+			OP(acc, other);
 		}
 	}
 
 	if (lid == 0)
-		output[get_group_id(0)] = scratch[0];
+		output[get_group_id(0)] = acc;
 }

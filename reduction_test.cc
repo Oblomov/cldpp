@@ -438,7 +438,7 @@ int main(int argc, char **argv) {
 		int argnum = 0;
 		KERNEL_ARG(d_input);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				group_size[0]*sizeof(float), NULL); \
+				group_size[0]*sizeof(float)/2, NULL); \
 			check_ocl_error(error, "setting kernel param"); \
 			KERNEL_ARG(options.elements);
 		KERNEL_ARG(d_output);
@@ -459,7 +459,7 @@ int main(int argc, char **argv) {
 		argnum = 0;
 		KERNEL_ARG(d_output);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				group_size[0]*sizeof(float), NULL); \
+				group_size[0]*sizeof(float)/2, NULL); \
 			check_ocl_error(error, "setting kernel param"); \
 			KERNEL_ARG(options.groups);
 		KERNEL_ARG(d_output);
