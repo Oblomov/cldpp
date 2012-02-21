@@ -38,12 +38,11 @@ __kernel void reduce(__global const TYPE* restrict input,
 #endif
 		if (lid < offset) {
 			TYPE other = scratch[lid+offset];
-			TYPE me = scratch[lid];
-			OP(me, other);
-			scratch[lid] = me;
+			OP(acc, other);
+			scratch[lid] = acc;
 		}
 	}
 
 	if (lid == 0)
-		output[get_group_id(0)] = scratch[0];
+		output[get_group_id(0)] = acc;
 }
