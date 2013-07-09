@@ -477,8 +477,8 @@ int main(int argc, char **argv) {
 				0, NULL,
 				pass_evt);
 
-		group_size[0] = options.groups;
-		work_size[0] = options.groups;
+		group_size[0] = ROUND_MUL(options.groups, ws_multiple);
+		work_size[0] = group_size[0];
 
 		argnum = 0;
 		KERNEL_ARG(d_output);
