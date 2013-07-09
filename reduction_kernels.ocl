@@ -6,6 +6,10 @@
    (e.g. 0 for sum). Also, SMALL_WORKGROUP should be define if the worgroup
    size matches the device warp/wavefront size */
 
+/* Two ways to do reductions are presented: one tries to do in-warp reductions
+   first and then cross-warp reductions, the other follows a more traditional
+   approach */
+
 #ifndef TYPE
 #define TYPE float
 #endif
@@ -44,6 +48,31 @@ __kernel void reduce(__global const TYPE* restrict input,
 
 	uint lid = get_local_id(0);
 	scratch[lid] = acc;
+
+#ifdef WAVE_SIZE
+	uint wave_num = lid / WAVE_SIZE;
+	uint wid = lid - (wave_num * WAVE_SIZE);
+	for (uint offset = WAVE_SIZE/2; offset; offset >>= 1) {
+		/* in-wave reductions don't need a barrier */
+		barrier(CLK_LOCAL_MEM_FENCE);
+		if (wid < offset) {
+			TYPE other = scratch[lid+offset];
+			OP(acc, other);
+			scratch[lid] = acc;
+		}
+	}
+	/* cross-wave reductions */
+	uint num_waves = (get_local_size(0) + WAVE_SIZE - 1)/WAVE_SIZE;
+	for (uint skip_waves = 1; skip_waves < num_waves; skip_waves *=2) {
+		barrier(CLK_LOCAL_MEM_FENCE);
+		uint offset = skip_waves * WAVE_SIZE;
+		if (wid == 0 && (wave_num & (2*skip_waves - 1)) == 0) {
+			TYPE other = scratch[lid+offset];
+			OP(acc, other);
+			scratch[lid] = acc;
+		}
+	}
+#else
 	for (uint offset = get_local_size(0)/2; offset; offset >>= 1) {
 #ifndef SMALL_WORKGROUP
 		barrier(CLK_LOCAL_MEM_FENCE);
@@ -54,6 +83,7 @@ __kernel void reduce(__global const TYPE* restrict input,
 			scratch[lid] = acc;
 		}
 	}
+#endif
 
 	if (lid == 0)
 		output[get_group_id(0)] = acc;
