@@ -10,11 +10,23 @@
 #define TYPE float
 #endif
 
-#ifndef OP
-#define OP(acc, el) acc = fmin(acc, el);
-#define OP_NULL NAN
+#ifndef FMIN_OP
+#define FMIN_OP(acc, el) acc = fmin(acc, el)
+#define FMIN_OP_NULL NAN
 #endif
 
+#ifndef ADD_OP
+#define ADD_OP(acc, el) acc += el
+#define ADD_OP_NULL 0
+#endif
+
+#if !defined(OP)
+#error "Please define an OP"
+#endif
+
+#if !defined(OP_NULL)
+#error "Please define an OP_NULL"
+#endif
 
 __kernel void reduce(__global const TYPE* restrict input,
 		__local volatile TYPE* restrict scratch,

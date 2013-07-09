@@ -13,6 +13,21 @@
 #include <CL/cl.h>
 #endif
 
+#define TEST_MIN 0 // set to 1 to test min instead of +
+#if TEST_MIN
+#define OP_NAME "min"
+#define OP_NULL CL_INFINITY
+#define TYPE cl_float
+#define PTYPE "%g"
+#define KDEFS "-DTYPE=float -DOP=FMIN_OP -DOP_NULL=FMIN_OP_NULL"
+#else
+#define OP_NAME "sum"
+#define OP_NULL 0
+#define TYPE cl_int
+#define PTYPE "%u"
+#define KDEFS "-DTYPE=int -DOP=ADD_OP -DOP_NULL=ADD_OP_NULL"
+#endif
+
 struct options_t {
 	cl_uint platform;
 	cl_uint device;
@@ -307,7 +322,7 @@ int main(int argc, char **argv) {
 		if (dev_info.max_alloc < amt)
 			amt = dev_info.max_alloc;
 			*/
-		amt /= 1.3*sizeof(float);
+		amt /= 1.3*sizeof(TYPE);
 		if (amt > CL_UINT_MAX)
 			options.elements = CL_UINT_MAX;
 		else
@@ -316,19 +331,23 @@ int main(int argc, char **argv) {
 				options.elements>>20);
 	}
 
-	float *data = (float*) calloc(options.elements, sizeof(float));
-	size_t data_size = options.elements * sizeof(float);
-	float min = CL_INFINITY, d_min = CL_INFINITY;
+	TYPE *data = (TYPE*) calloc(options.elements, sizeof(TYPE));
+	size_t data_size = options.elements * sizeof(TYPE);
+	TYPE host_res = OP_NULL, dev_res = OP_NULL;
 
 	for (cl_uint i = 0; i < options.elements; ++i) {
-		// data[i] = (2*float(rand())/RAND_MAX - 1)*1024;
+		// data[i] = (2*TYPE(rand())/RAND_MAX - 1)*1024;
+#if TEST_MIN
 		data[i] = options.elements - i;
-		if (data[i] < min)
-			min = data[i];
+		if (data[i] < host_res)
+			host_res = data[i];
+#else
+		data[i] = 1;
+		host_res += data[i];
+#endif
 	}
-	printf("%u elements generated, min %g, data size %zu (%zuMB)\n",
-			options.elements, min, data_size,
-			data_size>>20);
+	printf("%u elements generated, " OP_NAME " " PTYPE ", data size %zu (%zuMB)\n",
+			options.elements, host_res, data_size, data_size>>20);
 
 	/* device buffers */
 
@@ -355,7 +374,7 @@ int main(int argc, char **argv) {
 	}
 
 	d_output = clCreateBuffer(ctx, CL_MEM_READ_WRITE,
-			options.groups*sizeof(float), NULL, &error);
+			options.groups*sizeof(TYPE), NULL, &error);
 	check_ocl_error(error, "allocating output memory buffer");
 
 	/* load and build program */
@@ -367,6 +386,8 @@ int main(int argc, char **argv) {
 	cl_program program = clCreateProgramWithSource(ctx, 1,
 			(const char **)&prog_source, NULL, &error);
 	check_ocl_error(error, "creating program");
+
+	clbuild_add(KDEFS);
 
 	if (clbuild_next > OPTBUFSIZE) {
 		fprintf(stderr, "failed to assemble CL compiler options\n");
@@ -438,7 +459,7 @@ int main(int argc, char **argv) {
 		int argnum = 0;
 		KERNEL_ARG(d_input);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				group_size[0]*sizeof(float), NULL); \
+				group_size[0]*sizeof(TYPE), NULL); \
 			check_ocl_error(error, "setting kernel param"); \
 			KERNEL_ARG(options.elements);
 		KERNEL_ARG(d_output);
@@ -459,7 +480,7 @@ int main(int argc, char **argv) {
 		argnum = 0;
 		KERNEL_ARG(d_output);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				group_size[0]*sizeof(float), NULL); \
+				options.groups*sizeof(TYPE), NULL); \
 			check_ocl_error(error, "setting kernel param"); \
 			KERNEL_ARG(options.groups);
 		KERNEL_ARG(d_output);
@@ -482,12 +503,13 @@ int main(int argc, char **argv) {
 
 	/* copy memory down */
 	error = clEnqueueReadBuffer(queue, d_output, true, 0,
-			sizeof(float), &d_min,
+			sizeof(TYPE), &dev_res,
 			0, NULL, mem_evt);
 	check_ocl_error(error, "getting results");
 
+	clFinish(queue);
 	GET_RUNTIME(mem_evt[0], "memory download");
-	data_size = sizeof(float);
+	data_size = sizeof(TYPE);
 	printf("total download runtime: %gms for %gMB (%g GB/s)\n",
 			double(endTime-startTime)/1000000,
 			data_size/(1024*1024.0),
@@ -506,5 +528,9 @@ int main(int argc, char **argv) {
 	fflush(stderr);
 
 	free(data);
-	printf("Parallel min: %g vs %g\n", d_min, min);
+
+	TYPE expected = TEST_MIN ? 1 : options.elements;
+	printf("Parallel " OP_NAME ": " PTYPE " vs " PTYPE " (expected: " PTYPE ")\n",
+		dev_res, host_res, expected);
+	printf("Deltas: " PTYPE " vs " PTYPE "\n", dev_res - expected, host_res - expected);
 }
