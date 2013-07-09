@@ -462,9 +462,9 @@ int main(int argc, char **argv) {
 		int argnum = 0;
 		KERNEL_ARG(d_input);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				group_size[0]*sizeof(TYPE), NULL); \
-			check_ocl_error(error, "setting kernel param"); \
-			KERNEL_ARG(options.elements);
+				group_size[0]*sizeof(TYPE), NULL);
+		check_ocl_error(error, "setting kernel param");
+		KERNEL_ARG(options.elements);
 		KERNEL_ARG(d_output);
 
 		/* launch kernel, with an event to collect profiling info */
@@ -477,15 +477,19 @@ int main(int argc, char **argv) {
 				0, NULL,
 				pass_evt);
 
-		group_size[0] = ROUND_MUL(options.groups, ws_multiple);
+		/* The group size should always be a power-of-2, and
+		   a multiple of the recommended ws_multiple */
+		group_size[0] = ws_multiple;
+		while (group_size[0] < options.groups)
+			group_size[0] *= 2;
 		work_size[0] = group_size[0];
 
 		argnum = 0;
 		KERNEL_ARG(d_output);
 		error = clSetKernelArg(reduceKernel, argnum++,
-				options.groups*sizeof(TYPE), NULL); \
-			check_ocl_error(error, "setting kernel param"); \
-			KERNEL_ARG(options.groups);
+				group_size[0]*sizeof(TYPE), NULL);
+		check_ocl_error(error, "setting kernel param");
+		KERNEL_ARG(options.groups);
 		KERNEL_ARG(d_output);
 
 		clEnqueueNDRangeKernel(queue, reduceKernel,
