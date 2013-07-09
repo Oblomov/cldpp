@@ -33,6 +33,7 @@ struct options_t {
 	cl_uint device;
 	cl_uint elements;
 	cl_uint groups;
+	cl_uint groupsize;
 } options;
 
 cl_ulong startTime, endTime;
@@ -192,7 +193,7 @@ void parse_options(int argc, char **argv)
 			sscanf(*argv, "%u", &(options.groups));
 			++argv; --argc;
 		} else if (!strcmp(arg, "--groupsize")) {
-			sscanf(*argv, "%zu", group_size);
+			sscanf(*argv, "%zu", &(options.groupsize));
 			++argv; --argc;
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
@@ -452,7 +453,9 @@ int main(int argc, char **argv) {
 		GET_RUNTIME(mem_evt[0], "memory upload");
 	}
 
-	for (size_t ws = ws_multiple ; ws <= max_wg_size; ws *= 2) {
+	size_t ws_first = options.groupsize ? options.groupsize : ws_multiple ;
+	size_t ws_last = options.groupsize ? options.groupsize: max_wg_size ;
+	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
 		group_size[0] = ws;
 		work_size[0] = group_size[0]*options.groups;
 
