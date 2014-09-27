@@ -475,7 +475,7 @@ int main(int argc, char **argv) {
 
 		/* The group size should always be a power-of-2, and
 		   a multiple of the recommended ws_multiple */
-		group_size[0] = ws_multiple;
+		group_size[0] = options.groupsize < ws_multiple ? options.groupsize : ws_multiple;
 		while (group_size[0] < options.groups)
 			group_size[0] *= 2;
 		work_size[0] = group_size[0];
