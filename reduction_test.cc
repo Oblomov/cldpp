@@ -33,7 +33,7 @@ struct options_t {
 	cl_uint device;
 	cl_uint elements;
 	cl_uint groups;
-	cl_uint groupsize;
+	size_t groupsize;
 } options;
 
 cl_ulong startTime, endTime;
@@ -247,7 +247,6 @@ int main(int argc, char **argv) {
 		printf(" (%s)\n", buffer);
 	}
 
-	cl_uint platnum = 0;
 	platform = platform_list[options.platform];
 	printf("using platform %u\n", options.platform);
 
@@ -275,7 +274,6 @@ int main(int argc, char **argv) {
 		printf("\tdev %u: %s\n", i, buffer);
 	}
 
-	cl_uint devnum = 0;
 	dev = dev_list[options.device];
 	printf("using device %u\n", options.device);
 
@@ -323,7 +321,7 @@ int main(int argc, char **argv) {
 		if (dev_info.max_alloc < amt)
 			amt = dev_info.max_alloc;
 			*/
-		amt /= 1.3*sizeof(TYPE);
+		amt /= 1.1*sizeof(TYPE);
 		if (amt > CL_UINT_MAX)
 			options.elements = CL_UINT_MAX;
 		else
@@ -355,7 +353,6 @@ int main(int argc, char **argv) {
 	cl_mem d_input, d_output;
 
 	cl_event mem_evt[1];
-	size_t mem_evt_count = 0;
 
 	cl_mem_flags host_flag = 0;
 	void *host_ptr = NULL;
@@ -370,7 +367,7 @@ int main(int argc, char **argv) {
 	if (!dev_info.host_mem) {
 		error = clEnqueueWriteBuffer(queue, d_input, false, 0,
 				data_size, data,
-				0, NULL, mem_evt + mem_evt_count++);
+				0, NULL, mem_evt);
 		check_ocl_error(error, "copying source memory buffer");
 	}
 
@@ -450,11 +447,12 @@ int main(int argc, char **argv) {
 
 	if (!dev_info.host_mem) {
 		clWaitForEvents(1, mem_evt);
-		GET_RUNTIME(mem_evt[0], "memory upload");
+		GET_RUNTIME(*mem_evt, "memory upload");
+		clReleaseEvent(*mem_evt);
 	}
 
 	size_t ws_first = options.groupsize ? options.groupsize : ws_multiple ;
-	size_t ws_last = options.groupsize ? options.groupsize: max_wg_size ;
+	size_t ws_last = options.groupsize ? options.groupsize : max_wg_size ;
 	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
 		group_size[0] = ws;
 		work_size[0] = group_size[0]*options.groups;
@@ -468,8 +466,6 @@ int main(int argc, char **argv) {
 		KERNEL_ARG(d_output);
 
 		/* launch kernel, with an event to collect profiling info */
-
-		const cl_event *wait_evts = dev_info.host_mem ? NULL : mem_evt;
 
 		clEnqueueNDRangeKernel(queue, reduceKernel,
 				1,
@@ -501,7 +497,7 @@ int main(int argc, char **argv) {
 		error = clFinish(queue); // sync on queue
 		check_ocl_error(error, "finishing queue");
 
-		printf("Group size: %zu\n", ws);
+		printf("Group size: %zu, %zu\n", ws, group_size[0]);
 		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
 		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
 		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
@@ -515,7 +511,9 @@ int main(int argc, char **argv) {
 	check_ocl_error(error, "getting results");
 
 	clFinish(queue);
-	GET_RUNTIME(mem_evt[0], "memory download");
+	GET_RUNTIME(*mem_evt, "memory download");
+	clReleaseEvent(*mem_evt);
+
 	data_size = sizeof(TYPE);
 	printf("total download runtime: %gms for %gMB (%g GB/s)\n",
 			double(endTime-startTime)/1000000,

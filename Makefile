@@ -1,4 +1,3 @@
-LDLIBS=-lm -lOpenCL
+LDLIBS=-lOpenCL
 
 reduction_test: reduction_test.cc
-	$(LINK.cc) $< $(LOADLIBES) $(LDLIBS) -o $@
