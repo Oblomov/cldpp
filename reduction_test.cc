@@ -33,6 +33,7 @@ struct options_t {
 	cl_uint device;
 	cl_uint elements;
 	cl_uint groups;
+	cl_int reduction_style; // 0: interleaved; 1: blocks
 	size_t groupsize;
 } options;
 
@@ -76,6 +77,8 @@ size_t max_wg_size = 0;
 size_t ws_multiple = 0;
 
 typedef struct dev_info_t {
+	/* device type */
+	cl_device_type dev_type;
 	/* number of compute units */
 	cl_uint compute_units;
 	/* max alloc*/
@@ -195,6 +198,9 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--groupsize")) {
 			sscanf(*argv, "%zu", &(options.groupsize));
 			++argv; --argc;
+		} else if (!strcmp(arg, "--reduction-style")) {
+			sscanf(*argv, "%u", &(options.reduction_style));
+			++argv; --argc;
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
 		} else if (!strncmp(arg, "-", 1)) {
@@ -212,6 +218,7 @@ int main(int argc, char **argv) {
 	options.device = 0;
 	options.elements = 0;
 	options.groups = 4;
+	options.reduction_style = -1;
 
 	parse_options(argc, argv);
 
@@ -277,6 +284,9 @@ int main(int argc, char **argv) {
 	dev = dev_list[options.device];
 	printf("using device %u\n", options.device);
 
+	error = clGetDeviceInfo(dev, CL_DEVICE_TYPE,
+			sizeof(dev_info.dev_type), &dev_info.dev_type,
+			NULL);
 	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_COMPUTE_UNITS,
 			sizeof(dev_info.compute_units), &dev_info.compute_units,
 			NULL);
@@ -298,6 +308,19 @@ int main(int argc, char **argv) {
 	printf("Device has %u compute units, %lu local memory, %s memory\n",
 			dev_info.compute_units, dev_info.local_mem_size,
 			dev_info.host_mem ? "unified host" : "separate");
+
+	/* Pick default reduction style unless specified; default to
+	 * block reduction on CPU, interleaved otherwise */
+	if (options.reduction_style < 0) {
+		if (dev_info.dev_type == CL_DEVICE_TYPE_CPU)
+			options.reduction_style = 1;
+		else
+			options.reduction_style = 0;
+	}
+
+	clbuild_printf("-DREDUCTION_STYLE=%u", options.reduction_style);
+	printf("Reduction style: %s\n", options.reduction_style == 0 ? "interleaved" :
+		options.reduction_style == 1 ? "blocked" : "<?>");
 
 	/* creating a context for one dev */
 

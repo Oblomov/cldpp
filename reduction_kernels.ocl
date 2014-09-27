@@ -37,10 +37,37 @@ __kernel void reduce(__global const TYPE* restrict input,
 		uint numels,
 		__global TYPE* restrict output)
 {
+	/* Reduction may be done interleaved (style 0) or in blocks (style 1) */
+#if REDUCTION_STYLE == 0
+	/* Each work-item processes elements by jumping by the global size, until
+	we run out */
+	const uint end = numels;
+	const uint stride = get_global_size(0);
+
+	/* initialize */
 	uint gid = get_global_id(0);
-	uint stride = get_global_size(0);
+#elif REDUCTION_STYLE == 1
+	/* Each group processes a block of consecutive elements. */
+
+	/* The maximum number of elements to be processed by each group: */
+	const uint els_per_group = (numels + get_num_groups(0) - 1)/get_num_groups(0);
+
+	/* Within each block, the work-items proceed with a stride: */
+	const uint stride = get_local_size(0);
+
+	/* Range of elements */
+	const uint begin = get_group_id(0)*els_per_group;
+	const uint end = numels > begin + els_per_group ? begin + els_per_group : numels;
+
+	/* initialize: */
+	uint gid = begin + get_local_id(0);
+#else
+#error "Undefined REDUCTION_STYLE"
+#endif
+
 	TYPE acc = OP_NULL;
-	while (gid < numels) {
+
+	while (gid < end) {
 		TYPE el = input[gid];
 		OP(acc, el);
 		gid += stride;
