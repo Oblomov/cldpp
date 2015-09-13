@@ -1,6 +1,7 @@
-/* usual C/C++ includes */
+/* usual C includes */
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h> // bool, true, false
 #include <stdlib.h> // for rand()
 #include <errno.h>
 
@@ -49,7 +50,7 @@ cl_event pass_evt[2];
 			sizeof(cl_ulong), &endTime, NULL); \
 	check_ocl_error(error, "getting profiling info"); \
 	printf(text " runtime: %gms\n", \
-			double(endTime-startTime)/1000000); \
+			(double)(endTime-startTime)/1000000); \
 	} while (0);
 
 #define GET_RUNTIME_DELTA(evt1, evt2, text) do {\
@@ -59,7 +60,7 @@ cl_event pass_evt[2];
 			sizeof(cl_ulong), &endTime, NULL); \
 	check_ocl_error(error, "getting profiling info"); \
 	printf(text " runtime: %gms\n", \
-			double(endTime-startTime)/1000000); \
+			(double)(endTime-startTime)/1000000); \
 	} while (0);
 
 /* macro to set the next kernel argument */
@@ -141,7 +142,7 @@ void clbuild_printf(char const* fmt, ...)
 	}
 }
 
-void check_ocl_error(const cl_int &error, const char *message) {
+void check_ocl_error(const cl_int error, const char *message) {
 	if (error != CL_SUCCESS) {
 		fprintf(stderr, "error %d %s\n", error, message);
 		exit(1);
@@ -181,7 +182,7 @@ char *read_file(const char *fname) {
  * and optionally user/device-provied values */
 
 /* check if a value is a power of two */
-inline bool is_po2(size_t in)
+static inline bool is_po2(size_t in)
 {
 	return !(in & (in-1));
 }
@@ -361,7 +362,7 @@ int main(int argc, char **argv) {
 			options.groups = dev_info.compute_units;
 	}
 	printf("Reductin will use %u groups (%g groups/CU)\n",
-		options.groups, double(options.groups)/dev_info.compute_units);
+		options.groups, (double)options.groups/dev_info.compute_units);
 
 	/* Pick default reduction style unless specified; default to
 	 * block reduction on CPU, interleaved otherwise */
@@ -600,7 +601,7 @@ int main(int argc, char **argv) {
 		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
 		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
 		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
-		printf("Bandwidth: %.4g GB/s\n", double(data_size)/(endTime-startTime));
+		printf("Bandwidth: %.4g GB/s\n", (double)data_size/(endTime-startTime));
 	}
 
 	/* copy memory down */
@@ -615,11 +616,11 @@ int main(int argc, char **argv) {
 
 	data_size = sizeof(TYPE);
 	printf("total download runtime: %gms for %gMB (%g GB/s)\n",
-			double(endTime-startTime)/1000000,
+			(double)(endTime-startTime)/1000000,
 			data_size/(1024*1024.0),
 			/* the magic factor is 10^9/2^30, i.e.
 			   decimal billions over binary gigas */
-			data_size/double(endTime-startTime)*0.931322575);
+			data_size/(double)(endTime-startTime)*0.931322575);
 
 	clReleaseMemObject(d_output);
 	clReleaseMemObject(d_input);

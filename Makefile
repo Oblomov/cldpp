@@ -1,3 +1,5 @@
-LDLIBS=-lOpenCL
+CFLAGS += -std=c99
 
-reduction_test: reduction_test.cc
+LDLIBS +=-lOpenCL
+
+reduction_test: reduction_test.c
