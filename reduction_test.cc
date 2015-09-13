@@ -32,7 +32,8 @@ struct options_t {
 	cl_uint platform;
 	cl_uint device;
 	cl_uint elements;
-	cl_uint groups;
+	cl_uint cugroups; // groups per CU
+	cl_uint groups; // total number of groups, overrides cugroups if both are specified
 	cl_int reduction_style; // 0: interleaved; 1: blocks
 	size_t groupsize;
 } options;
@@ -213,6 +214,9 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--elements")) {
 			sscanf(*argv, "%u", &(options.elements));
 			++argv; --argc;
+		} else if (!strcmp(arg, "--cugroups")) {
+			sscanf(*argv, "%u", &(options.cugroups));
+			++argv; --argc;
 		} else if (!strcmp(arg, "--groups")) {
 			sscanf(*argv, "%u", &(options.groups));
 			++argv; --argc;
@@ -229,6 +233,11 @@ void parse_options(int argc, char **argv)
 		} else {
 			fprintf(stderr, "too many filenames: %s\n", arg);
 		}
+	}
+
+	if (options.cugroups && options.groups) {
+		printf("number of groups %u overrides number of groups/CU %u\n",
+			options.groups, options.cugroups);
 	}
 
 	/* Check that options.groupsize is a power-of-two */
@@ -344,11 +353,15 @@ int main(int argc, char **argv) {
 	/* If the user has not specified the number of groups, pick one based on
 	 * device type and number of compute units */
 	if (!options.groups) {
-		if (dev_info.dev_type == CL_DEVICE_TYPE_GPU)
+		if (options.cugroups)
+			options.groups = options.cugroups*dev_info.compute_units;
+		else if (dev_info.dev_type == CL_DEVICE_TYPE_GPU)
 			options.groups = 6*dev_info.compute_units;
 		else
 			options.groups = dev_info.compute_units;
 	}
+	printf("Reductin will use %u groups (%g groups/CU)\n",
+		options.groups, double(options.groups)/dev_info.compute_units);
 
 	/* Pick default reduction style unless specified; default to
 	 * block reduction on CPU, interleaved otherwise */
