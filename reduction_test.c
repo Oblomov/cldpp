@@ -243,7 +243,7 @@ void parse_options(int argc, char **argv)
 			sscanf(*argv, "%zu", &(options.groupsize));
 			++argv; --argc;
 		} else if (!strcmp(arg, "--reduction-style")) {
-			sscanf(*argv, "%u", &(options.reduction_style));
+			sscanf(*argv, "%d", &(options.reduction_style));
 			++argv; --argc;
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
