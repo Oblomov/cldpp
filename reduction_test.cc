@@ -176,6 +176,27 @@ char *read_file(const char *fname) {
 	return buff;
 }
 
+/* Work-group sizes must be a power of two, so we'll need to check
+ * and optionally user/device-provied values */
+
+/* check if a value is a power of two */
+inline bool is_po2(size_t in)
+{
+	return !(in & (in-1));
+}
+
+/* find the closest power-of-two approximation of a number */
+size_t fix_po2(size_t in)
+{
+	/* I'd go for popcount, but meh */
+	size_t out = 1;
+	while (out < in)
+		out *= 2;
+	if (in - out > in - 2*out)
+		out *= 2;
+	return out;
+}
+
 void parse_options(int argc, char **argv)
 {
 	/* skip argv[0] */
@@ -209,6 +230,17 @@ void parse_options(int argc, char **argv)
 			fprintf(stderr, "too many filenames: %s\n", arg);
 		}
 	}
+
+	/* Check that options.groupsize is a power-of-two */
+	if (options.groupsize && !is_po2(options.groupsize)) {
+		/* not power-of-two, fix */
+		const size_t oldval = options.groupsize;
+		const size_t newval = fix_po2(oldval);
+		fprintf(stderr, "selected groupsize %zu is not a power of two,"
+			" rounding to %zu.\n", oldval, newval);
+		options.groupsize = newval;
+	}
+
 }
 
 int main(int argc, char **argv) {
@@ -455,6 +487,7 @@ int main(int argc, char **argv) {
 	cl_kernel reduceKernel = clCreateKernel(program, kname, &error);
 	check_ocl_error(error, "creating kernel");
 
+	/* Selecting the kernel work-group size(s) */
 	clGetKernelWorkGroupInfo(reduceKernel, dev, CL_KERNEL_WORK_GROUP_SIZE,
 			sizeof(max_wg_size), &max_wg_size, NULL);
 	error = clGetKernelWorkGroupInfo(reduceKernel, dev,
@@ -462,8 +495,16 @@ int main(int argc, char **argv) {
 			sizeof(ws_multiple), &ws_multiple, NULL);
 	check_ocl_error(error, "checking device properties");
 	if (ws_multiple == 0) {
-		printf("reported a null workgroup size multple! Assume 1\n");
+		fprintf(stderr, "device reported a null workgroup size multple; assuming 1\n");
 		ws_multiple = 1;
+	}
+	if (!is_po2(ws_multiple)) {
+		fprintf(stderr, "device has a non-power-of-two workgroup size multiple (%zu); expect oddities\n",
+			ws_multiple);
+		ws_multiple = fix_po2(ws_multiple);
+		if (ws_multiple > max_wg_size)
+			ws_multiple /= 2;
+		fprintf(stderr, "\tusing %zu instead\n", ws_multiple);
 	}
 	printf("kernel prefers multiples of %zu up to %zu\n",
 			ws_multiple, max_wg_size);
