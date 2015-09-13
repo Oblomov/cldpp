@@ -612,7 +612,11 @@ int main(int argc, char **argv) {
 		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
 		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
 		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
-		printf("Bandwidth: %.4g GB/s\n", (double)data_size/(endTime-startTime));
+
+		/* count the intermediate reads and writes too in the effective bandwidth usage */
+		const size_t reduction_data_size = data_size + (2*options.groups+1)*sizeof(TYPE);
+		printf("Bandwidth: %.4g GB/s\n", (double)reduction_data_size/(endTime-startTime));
+		printf("Reduction performance: %.4g GE/s\n", (double)options.elements/(endTime-startTime));
 	}
 
 	/* copy memory down */
