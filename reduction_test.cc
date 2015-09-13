@@ -474,9 +474,26 @@ int main(int argc, char **argv) {
 		clReleaseEvent(*mem_evt);
 	}
 
-	size_t ws_first = options.groupsize ? options.groupsize : ws_multiple ;
-	size_t ws_last = options.groupsize ? options.groupsize : max_wg_size ;
+	const size_t ws_first = options.groupsize ? options.groupsize : ws_multiple ;
+	const size_t ws_last = options.groupsize ? options.groupsize : max_wg_size ;
+
+	/* For the first kernel launch, we issue options.groups work-groups; each
+	 * work-group reduces some of the data, and produces one reduced value,
+	 * so the first kernel launch returns one element per work-group. On the second
+	 * kernel launch, we do a further reduction of all the previous partial reduction.
+	 * The group size in this case will be the smallest multiple of ws_multiple
+	 * not smaller than options.groups, obviously clamped to max_wg_size.
+	 * If the user specified a groupsize smaller than ws_multiple, we'll go
+	 * for multiples of options.groupsize instead */
+	size_t ws_second = options.groupsize && options.groupsize < ws_multiple
+		? options.groupsize : ws_multiple;
+	while (ws_second < options.groups)
+		ws_second *= 2;
+	if (ws_second > max_wg_size)
+		ws_second = max_wg_size;
+
 	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
+		/* First run: options.groups ws-sized work-groups */
 		group_size[0] = ws;
 		work_size[0] = group_size[0]*options.groups;
 
@@ -496,12 +513,8 @@ int main(int argc, char **argv) {
 				0, NULL,
 				pass_evt);
 
-		/* The group size should always be a power-of-2, and
-		   a multiple of the recommended ws_multiple */
-		group_size[0] = options.groupsize < ws_multiple ? options.groupsize : ws_multiple;
-		while (group_size[0] < options.groups)
-			group_size[0] *= 2;
-		work_size[0] = group_size[0];
+		/* Second run: single work-group sized as mentioned above */
+		group_size[0] = work_size[0] = ws_second;
 
 		argnum = 0;
 		KERNEL_ARG(d_output);
