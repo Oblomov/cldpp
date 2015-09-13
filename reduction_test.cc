@@ -249,7 +249,7 @@ int main(int argc, char **argv) {
 	options.platform = 0;
 	options.device = 0;
 	options.elements = 0;
-	options.groups = 4;
+	options.groups = 0;
 	options.reduction_style = -1;
 
 	parse_options(argc, argv);
@@ -340,6 +340,15 @@ int main(int argc, char **argv) {
 	printf("Device has %u compute units, %lu local memory, %s memory\n",
 			dev_info.compute_units, dev_info.local_mem_size,
 			dev_info.host_mem ? "unified host" : "separate");
+
+	/* If the user has not specified the number of groups, pick one based on
+	 * device type and number of compute units */
+	if (!options.groups) {
+		if (dev_info.dev_type == CL_DEVICE_TYPE_GPU)
+			options.groups = 6*dev_info.compute_units;
+		else
+			options.groups = dev_info.compute_units;
+	}
 
 	/* Pick default reduction style unless specified; default to
 	 * block reduction on CPU, interleaved otherwise */
