@@ -14,6 +14,24 @@
 #include <CL/cl.h>
 #endif
 
+/* OpenCL 2.0 deprecated clCreateCommandQueue, replaced by
+ * clCreateCommandQueueWithProperties, which allows additional properties
+ * to be defined (namely, the queue size for device queues.
+ * To allow for a clean compile on 2.0+ and earlier headers, we use our own
+ * createCommandQueue, which follows the 1.x syntax
+ */
+
+#ifdef CL_VERSION_2_0
+static inline
+cl_command_queue createCommandQueue(cl_context ctx, cl_device_id dev,
+	cl_command_queue_properties props, cl_int *err)
+{
+	return clCreateCommandQueueWithProperties(ctx, dev, &props, err);
+}
+#else
+#define createCommandQueue clCreateCommandQueue
+#endif
+
 #define TEST_MIN 0 // set to 1 to test min instead of +
 #if TEST_MIN
 #define OP_NAME "min"
@@ -388,7 +406,7 @@ int main(int argc, char **argv) {
 	check_ocl_error(error, "creating context");
 
 	/* and a command queue to go with it */
-	cl_command_queue queue = clCreateCommandQueue(ctx, dev,
+	cl_command_queue queue = createCommandQueue(ctx, dev,
 			CL_QUEUE_PROFILING_ENABLE, &error);
 	check_ocl_error(error, "creating command queue");
 
