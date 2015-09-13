@@ -1,4 +1,6 @@
-CFLAGS += -std=c99
+CFLAGS += -std=c99 -pedantic
+
+CPPFLAGS += -Wall -Wextra -Werror
 
 LDLIBS +=-lOpenCL
 
