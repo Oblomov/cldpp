@@ -81,7 +81,7 @@ __kernel void reduce(__global const TYPE* restrict input,
 	uint wid = lid - (wave_num * WAVE_SIZE);
 	for (uint offset = WAVE_SIZE/2; offset; offset >>= 1) {
 		/* in-wave reductions don't need a barrier */
-		barrier(CLK_LOCAL_MEM_FENCE);
+		//barrier(CLK_LOCAL_MEM_FENCE);
 		if (wid < offset) {
 			TYPE other = scratch[lid+offset];
 			OP(acc, other);
