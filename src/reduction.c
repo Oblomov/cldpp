@@ -384,6 +384,7 @@ int main(int argc, char **argv) {
 			options.reduction_style = 0;
 	}
 
+	clbuild_add("-Isrc/");
 	clbuild_printf("-DREDUCTION_STYLE=%u", options.reduction_style);
 	printf("Reduction style: %s\n", options.reduction_style == 0 ? "interleaved" :
 		options.reduction_style == 1 ? "blocked" : "<?>");
