@@ -160,20 +160,51 @@ void check_ocl_error(const cl_int error, const char *message) {
 	}
 }
 
+const char * const paths[] = {
+	".",
+	"src",
+	NULL
+};
+
+const size_t paths_len = 4; /* maximum length of a paths element, +1 */
+
 char *read_file(const char *fname) {
 	size_t fsize, readsize;
-	char *buff;
+	char *buff = NULL;
+	FILE *fd = NULL;
+	const char * const *path = paths;
+	const size_t path_max = strlen(fname) + paths_len + 1;
+	char *full_path = malloc(path_max);
 
-	FILE *fd = fopen(fname, "rb");
+	if (!full_path) {
+		fprintf(stderr, "unable to allocate read_file path buffer\n");
+		return NULL;
+	}
+
+	while (!fd && *path) {
+		const size_t len = snprintf(full_path, path_max, "%s/%s", *path, fname);
+		if (len >= path_max)
+			break;
+		fd = fopen(full_path, "rb");
+		++path;
+	}
+
 	if (!fd) {
 		fprintf(stderr, "%s not found\n", fname);
 		return NULL;
+	} else {
+		printf("loading %s\n", full_path);
 	}
 
 	fseek(fd, 0, SEEK_END);
 	fsize = ftell(fd);
 
-	buff = (char *)malloc(fsize + 1);
+	buff = malloc(fsize + 1);
+	if (!buff) {
+		fprintf(stderr, "unable to allocate buffer for reading\n");
+		return NULL;
+	}
+
 	rewind(fd);
 	readsize = fread(buff, 1, fsize, fd);
 	if (fsize != readsize) {
