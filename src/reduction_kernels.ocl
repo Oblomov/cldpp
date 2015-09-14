@@ -14,6 +14,25 @@
 #define TYPE float
 #endif
 
+/* Token joiner for the C preprocessor */
+#define _TOK(a, b) a##b
+#define TOK(a, b) _TOK(a, b)
+
+#if VECSIZE > 1
+#define VECTYPE TOK(TYPE, VECSIZE)
+#if VECSIZE == 2
+#define VECREDUCE(acc) acc.x + acc.y
+#elif VECSIZE == 4
+#define VECREDUCE(acc) acc.x + acc.y + acc.z + acc.w
+#else
+// TODO support 8 and 16
+#error "Only vector sizes of 2 and 4 are supported"
+#endif
+#else
+#define VECTYPE TYPE
+#define VECREDUCE(acc) acc
+#endif
+
 #ifndef FMIN_OP
 #define FMIN_OP(acc, el) acc = fmin(acc, el)
 #define FMIN_OP_NULL NAN
@@ -32,7 +51,7 @@
 #error "Please define an OP_NULL"
 #endif
 
-__kernel void reduce(__global const TYPE* restrict input,
+__kernel void reduce(__global const VECTYPE* restrict input,
 		__local volatile TYPE* restrict scratch,
 		uint numels,
 		__global TYPE* restrict output)
@@ -65,14 +84,24 @@ __kernel void reduce(__global const TYPE* restrict input,
 #error "Undefined REDUCTION_STYLE"
 #endif
 
+#if VECSIZE > 1
+	VECTYPE vacc = (VECTYPE)(OP_NULL);
+#endif
 	TYPE acc = OP_NULL;
 
 	while (gid < end) {
-		TYPE el = input[gid];
+		VECTYPE el = input[gid];
+#if VECSIZE > 1
+		OP(vacc, el);
+#else
 		OP(acc, el);
+#endif
 		gid += stride;
 	}
 
+#if VECSIZE > 1
+	acc = VECREDUCE(vacc);
+#endif
 	uint lid = get_local_id(0);
 	scratch[lid] = acc;
 

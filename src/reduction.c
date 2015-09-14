@@ -47,6 +47,7 @@ struct options_t {
 	cl_uint cugroups; // groups per CU
 	cl_uint groups; // total number of groups, overrides cugroups if both are specified
 	cl_int reduction_style; // 0: interleaved; 1: blocks
+	cl_uint vecsize; // vectorized width
 	size_t groupsize;
 } options;
 
@@ -263,6 +264,9 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--groups")) {
 			sscanf(*argv, "%u", &(options.groups));
 			++argv; --argc;
+		} else if (!strcmp(arg, "--vecsize")) {
+			sscanf(*argv, "%u", &(options.vecsize));
+			++argv; --argc;
 		} else if (!strcmp(arg, "--groupsize")) {
 			sscanf(*argv, "%zu", &(options.groupsize));
 			++argv; --argc;
@@ -293,6 +297,17 @@ void parse_options(int argc, char **argv)
 		options.groupsize = newval;
 	}
 
+	if (options.vecsize == 0)
+		options.vecsize = 1;
+	else if (!is_po2(options.vecsize)) {
+		fprintf(stderr, "vector size %u not supported\n", options.vecsize);
+		exit(1);
+	} else if (options.vecsize > 4) {
+		// TODO not supported yet
+		fprintf(stderr, "vector size %u not supported yet\n", options.vecsize);
+		exit(1);
+	}
+
 }
 
 int main(int argc, char **argv) {
@@ -301,6 +316,7 @@ int main(int argc, char **argv) {
 	options.platform = 0;
 	options.device = 0;
 	options.elements = 0;
+	options.vecsize = 1;
 	options.groups = 0;
 	options.reduction_style = -1;
 
@@ -403,6 +419,9 @@ int main(int argc, char **argv) {
 		else
 			options.groups = dev_info.compute_units;
 	}
+	if (options.vecsize > 1)
+		options.groups = ROUND_MUL(options.groups, options.vecsize);
+
 	printf("Reductin will use %u groups (%g groups/CU)\n",
 		options.groups, (double)options.groups/dev_info.compute_units);
 
@@ -416,9 +435,13 @@ int main(int argc, char **argv) {
 	}
 
 	clbuild_add("-Isrc/");
-	clbuild_printf("-DREDUCTION_STYLE=%u", options.reduction_style);
+	clbuild_printf("-DREDUCTION_STYLE=%u -DVECSIZE=%u",
+		options.reduction_style, options.vecsize);
 	printf("Reduction style: %s\n", options.reduction_style == 0 ? "interleaved" :
 		options.reduction_style == 1 ? "blocked" : "<?>");
+	if (options.vecsize > 1) {
+		printf("Vector size: %u\n", options.vecsize);
+	}
 
 	/* creating a context for one dev */
 
@@ -447,9 +470,13 @@ int main(int argc, char **argv) {
 			options.elements = CL_UINT_MAX;
 		else
 			options.elements = amt;
+		if (options.vecsize > 1)
+			options.elements = ROUND_MUL(options.elements, options.vecsize);
 		printf("will process %u (%uM) elements\n", options.elements,
 				options.elements>>20);
 	}
+	if (options.vecsize > 1)
+		options.elements = ROUND_MUL(options.elements, options.vecsize);
 
 	TYPE *data = (TYPE*) calloc(options.elements, sizeof(TYPE));
 	size_t data_size = options.elements * sizeof(TYPE);
@@ -599,6 +626,10 @@ int main(int argc, char **argv) {
 	if (ws_second > max_wg_size)
 		ws_second = max_wg_size;
 
+	/* number of vector elements */
+	const cl_uint vecelements = options.elements/options.vecsize;
+	const cl_uint vecgroups = options.groups/options.vecsize;
+
 	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
 		/* First run: options.groups ws-sized work-groups */
 		group_size[0] = ws;
@@ -609,7 +640,7 @@ int main(int argc, char **argv) {
 		error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
 		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(options.elements);
+		KERNEL_ARG(vecelements);
 		KERNEL_ARG(d_output);
 
 		/* launch kernel, with an event to collect profiling info */
@@ -628,7 +659,7 @@ int main(int argc, char **argv) {
 		error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
 		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(options.groups);
+		KERNEL_ARG(vecgroups);
 		KERNEL_ARG(d_output);
 
 		clEnqueueNDRangeKernel(queue, reduceKernel,
