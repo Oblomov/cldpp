@@ -405,9 +405,11 @@ int main(int argc, char **argv) {
 			3*sizeof(*dev_info.max_wi_size), dev_info.max_wi_size, NULL);
 	check_ocl_error(error, "checking device properties");
 
-	printf("Device has %u compute units, %lu local memory, %s memory\n",
+	printf("Device has %u compute units, %lu local memory, %lu (%luMB) %s memory with max alloc of %lu (%luMB)\n",
 			dev_info.compute_units, dev_info.local_mem_size,
-			dev_info.host_mem ? "unified host" : "separate");
+			dev_info.mem_size, dev_info.mem_size >> 20,
+			dev_info.host_mem ? "unified host" : "separate",
+			dev_info.max_alloc, dev_info.max_alloc >> 20);
 
 	/* If the user has not specified the number of groups, pick one based on
 	 * device type and number of compute units */
@@ -460,18 +462,16 @@ int main(int argc, char **argv) {
 
 	/* initialize test data set */
 	if (options.elements == 0) {
-		cl_ulong amt = dev_info.mem_size;
-		/*
-		if (dev_info.max_alloc < amt)
-			amt = dev_info.max_alloc;
-			*/
-		amt /= 1.1*sizeof(TYPE);
+		cl_ulong amt = dev_info.max_alloc;
+		amt /= sizeof(TYPE);
 		if (amt > CL_UINT_MAX)
 			options.elements = CL_UINT_MAX;
 		else
 			options.elements = amt;
-		if (options.vecsize > 1)
-			options.elements = ROUND_MUL(options.elements, options.vecsize);
+		if (options.vecsize > 1) {
+			/* round down, to avoid overflowing max_alloc */
+			options.elements = (options.elements/options.vecsize)*options.vecsize;
+		}
 		printf("will process %u (%uM) elements\n", options.elements,
 				options.elements>>20);
 	}
