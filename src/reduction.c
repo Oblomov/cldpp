@@ -484,6 +484,10 @@ int main(int argc, char **argv) {
 		options.elements>>20);
 
 	TYPE *data = (TYPE*) calloc(options.elements, sizeof(TYPE));
+	if (!data) {
+		fprintf(stderr, "unable to allocate host memory during init");
+		exit(-CL_OUT_OF_HOST_MEMORY);
+	}
 	size_t data_size = options.elements * sizeof(TYPE);
 	TYPE host_res = OP_NULL, dev_res = OP_NULL;
 
