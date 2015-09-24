@@ -424,7 +424,7 @@ int main(int argc, char **argv) {
 	if (options.vecsize > 1)
 		options.groups = ROUND_MUL(options.groups, options.vecsize);
 
-	printf("Reductin will use %u groups (%g groups/CU)\n",
+	printf("Reduction will use %u groups (%g groups/CU)\n",
 		options.groups, (double)options.groups/dev_info.compute_units);
 
 	/* Pick default reduction style unless specified; default to
