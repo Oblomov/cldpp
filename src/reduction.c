@@ -302,10 +302,6 @@ void parse_options(int argc, char **argv)
 	else if (!is_po2(options.vecsize)) {
 		fprintf(stderr, "vector size %u not supported\n", options.vecsize);
 		exit(1);
-	} else if (options.vecsize > 4) {
-		// TODO not supported yet
-		fprintf(stderr, "vector size %u not supported yet\n", options.vecsize);
-		exit(1);
 	}
 
 }
