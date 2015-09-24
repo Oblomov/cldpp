@@ -468,15 +468,20 @@ int main(int argc, char **argv) {
 			options.elements = CL_UINT_MAX;
 		else
 			options.elements = amt;
-		if (options.vecsize > 1) {
-			/* round down, to avoid overflowing max_alloc */
-			options.elements = (options.elements/options.vecsize)*options.vecsize;
+		/* check that our elements, plus the auxiliary allocation, doesn't overflow
+		 * the device memory
+		 */
+		if ((options.elements + options.groups)*sizeof(TYPE) > dev_info.mem_size) {
+			/* clamp */
+			options.elements = dev_info.mem_size/sizeof(TYPE) - options.groups;
 		}
-		printf("will process %u (%uM) elements\n", options.elements,
-				options.elements>>20);
 	}
-	if (options.vecsize > 1)
-		options.elements = ROUND_MUL(options.elements, options.vecsize);
+	if (options.vecsize > 1) {
+		/* round down, to avoid overflowing max_alloc */
+		options.elements = (options.elements/options.vecsize)*options.vecsize;
+	}
+	printf("will process %u (%uM) elements\n", options.elements,
+		options.elements>>20);
 
 	TYPE *data = (TYPE*) calloc(options.elements, sizeof(TYPE));
 	size_t data_size = options.elements * sizeof(TYPE);
