@@ -14,7 +14,7 @@
  * to be defined (namely, the queue size for device queues.
  * However, we can't just use the 2.0+ API call as-is, since we might still
  * be running against 1.x platforms, so we'll just have to enable the use
- * of the deparated APIs (for now).
+ * of the deprecated APIs (for now).
  */
 
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
