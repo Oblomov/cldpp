@@ -501,12 +501,11 @@ int main(int argc, char **argv) {
 
 	for (cl_uint i = 0; i < options.elements; ++i) {
 		// data[i] = (2*TYPE(rand())/RAND_MAX - 1)*1024;
-#if TEST_MIN
 		data[i] = options.elements - i;
+#if TEST_MIN
 		if (data[i] < host_res)
 			host_res = data[i];
 #else
-		data[i] = 1;
 		host_res += data[i];
 #endif
 	}
@@ -729,7 +728,8 @@ int main(int argc, char **argv) {
 
 	free(data);
 
-	TYPE expected = TEST_MIN ? 1 : options.elements;
+	TYPE expected = TEST_MIN ? 1 : (options.elements & 1 ?
+		(options.elements + 1)/2*options.elements : options.elements/2*(options.elements + 1));
 	printf("Parallel " OP_NAME ": " PTYPE " vs " PTYPE " (expected: " PTYPE ")\n",
 		dev_res, host_res, expected);
 	printf("Deltas: " PTYPE " vs " PTYPE "\n", dev_res - expected, host_res - expected);
