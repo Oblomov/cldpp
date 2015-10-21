@@ -96,14 +96,39 @@ __kernel void reduce(__global const VECTYPE* restrict input,
 #endif
 	TYPE acc = OP_NULL;
 
+#if VECSIZE > 1 /* BEWARE: unprotected! */
+#define REDUCE_1 OP(vacc, el); gid +=stride
+#else
+#define REDUCE_1 OP(acc, el); gid +=stride
+#endif
+
+#if UNROLL > 1
+	while (gid < end && end - gid > UNROLL*stride) {
+		VECTYPE el = input[gid];
+		switch(UNROLL) {
+		case 16: REDUCE_1;
+		case 15: REDUCE_1;
+		case 14: REDUCE_1;
+		case 13: REDUCE_1;
+		case 12: REDUCE_1;
+		case 11: REDUCE_1;
+		case 10: REDUCE_1;
+		case  9: REDUCE_1;
+		case  8: REDUCE_1;
+		case  7: REDUCE_1;
+		case  6: REDUCE_1;
+		case  5: REDUCE_1;
+		case  4: REDUCE_1;
+		case  3: REDUCE_1;
+		case  2: REDUCE_1;
+		}
+		REDUCE_1;
+	}
+#endif
+
 	while (gid < end) {
 		VECTYPE el = input[gid];
-#if VECSIZE > 1
-		OP(vacc, el);
-#else
-		OP(acc, el);
-#endif
-		gid += stride;
+		REDUCE_1;
 	}
 
 #if VECSIZE > 1

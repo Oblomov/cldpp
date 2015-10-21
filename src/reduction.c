@@ -46,6 +46,7 @@ struct options_t {
 	cl_uint elements;
 	cl_uint cugroups; // groups per CU
 	cl_uint groups; // total number of groups, overrides cugroups if both are specified
+	cl_int unroll; // number of times to unroll the loading loop in the reduction
 	cl_int reduction_style; // 0: interleaved; 1: blocks
 	cl_uint vecsize; // vectorized width
 	size_t groupsize;
@@ -273,6 +274,8 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--reduction-style")) {
 			sscanf(*argv, "%d", &(options.reduction_style));
 			++argv; --argc;
+		} else if (!strcmp(arg, "--unroll")) {
+			sscanf(*argv, "%d", &(options.unroll));
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
 		} else if (!strncmp(arg, "-", 1)) {
@@ -304,6 +307,11 @@ void parse_options(int argc, char **argv)
 		exit(1);
 	}
 
+	if (options.unroll < 1 || options.unroll > 16) {
+		fprintf(stderr, "only unrolls of 1 to 8 are supported\n");
+		exit(1);
+	}
+
 }
 
 int main(int argc, char **argv) {
@@ -315,6 +323,7 @@ int main(int argc, char **argv) {
 	options.vecsize = 1;
 	options.groups = 0;
 	options.reduction_style = -1;
+	options.unroll = 1;
 
 	parse_options(argc, argv);
 
@@ -433,12 +442,15 @@ int main(int argc, char **argv) {
 	}
 
 	clbuild_add("-Isrc/");
-	clbuild_printf("-DREDUCTION_STYLE=%u -DVECSIZE=%u",
-		options.reduction_style, options.vecsize);
+	clbuild_printf("-DREDUCTION_STYLE=%u -DVECSIZE=%u -DUNROLL=%u",
+		options.reduction_style, options.vecsize, options.unroll);
 	printf("Reduction style: %s\n", options.reduction_style == 0 ? "interleaved" :
 		options.reduction_style == 1 ? "blocked" : "<?>");
 	if (options.vecsize > 1) {
 		printf("Vector size: %u\n", options.vecsize);
+	}
+	if (options.unroll > 1) {
+		printf("Unroll size: %u\n", options.unroll);
 	}
 
 	/* creating a context for one dev */
