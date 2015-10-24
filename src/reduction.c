@@ -697,6 +697,11 @@ int main(int argc, char **argv) {
 		const size_t reduction_data_size = data_size + (2*options.groups+1)*sizeof(TYPE);
 		printf("Bandwidth: %.4g GB/s\n", (double)reduction_data_size/(endTime-startTime));
 		printf("Reduction performance: %.4g GE/s\n", (double)options.elements/(endTime-startTime));
+		printf("SUMMARY: %6zu × %u + %4zu × 1 => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
+			ws, options.groups, ws_second, (endTime - startTime)/1000000.0,
+			(double)reduction_data_size/(endTime - startTime),
+			(double)options.elements/(endTime-startTime));
+
 	}
 
 	/* copy memory down */
