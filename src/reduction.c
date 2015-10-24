@@ -276,6 +276,7 @@ void parse_options(int argc, char **argv)
 			++argv; --argc;
 		} else if (!strcmp(arg, "--unroll")) {
 			sscanf(*argv, "%d", &(options.unroll));
+			++argv; --argc;
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
 		} else if (!strncmp(arg, "-", 1)) {
