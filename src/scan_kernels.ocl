@@ -83,7 +83,7 @@ TYPE local_scan(
 	__global VECTYPE * restrict output,
 	__global const VECTYPE * restrict input,
 	__local TYPE * lmem,
-	const uint numels,
+	const uint numvecels, /* number of VECTOR elements */
 	const uint offset,
 	const uint last_offset)
 {
@@ -103,7 +103,7 @@ TYPE local_scan(
 
 	while (gi < gi_end) {
 		/* load from gmem, microscan */
-		if (gi < numels/VECSIZE) {
+		if (gi < numvecels) {
 			data = input[gi];
 			VECSCAN(data);
 		} else {
@@ -137,7 +137,7 @@ TYPE local_scan(
 		/* and the residue from the previous pass */
 		data += (VECTYPE)(reduction_prev_pass);
 
-		if (gi < numels/VECSIZE)
+		if (gi < numvecels)
 			output[gi] = data;
 
 		/* augment the residual of the previous pass by the residual of this pass */
@@ -165,7 +165,7 @@ void first_scan_step(
 	const uint offset = els_per_wg*get_group_id(0)/VECSIZE;
 	const uint last_offset = offset + els_per_wg/VECSIZE;
 
-	TYPE reduction_prev_pass = local_scan(scan, v1, lmem, numels, offset, last_offset);
+	TYPE reduction_prev_pass = local_scan(scan, v1, lmem, numels/VECSIZE, offset, last_offset);
 
 	if (get_local_id(0) == 0)
 		aux[get_group_id(0)] = reduction_prev_pass;
@@ -182,7 +182,7 @@ void aux_scan_step(__global VECTYPE * restrict aux,
 	const uint offset = 0;
 	const uint last_offset = offset + numels/VECSIZE;
 
-	local_scan(aux, aux, lmem, numels, offset, last_offset);
+	local_scan(aux, aux, lmem, numels/VECSIZE, offset, last_offset);
 }
 
 
