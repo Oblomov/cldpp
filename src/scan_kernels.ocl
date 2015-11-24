@@ -1,0 +1,216 @@
+/* Three-stage parallel scan */
+
+/* The kernel should be called defining TYPE as the input/output data type,
+   OP(acc, el) as the operator and OP_NULL as the null item for the operator
+   (e.g. 0 for sum).
+*/
+
+#ifndef TYPE
+#define TYPE float
+#endif
+
+/* Token joiner for the C preprocessor */
+#define _TOK(a, b) a##b
+#define TOK(a, b) _TOK(a, b)
+
+#if VECSIZE > 1
+#define VECTYPE TOK(TYPE, VECSIZE)
+#if VECSIZE == 2
+#define VECSCAN(acc) acc.y += acc.x
+#define LASTOF(acc) acc.y
+#elif VECSIZE == 4
+#define VECSCAN(acc) \
+	acc.y += acc.x; \
+	acc.z += acc.y; \
+	acc.w += acc.z
+#define LASTOF(acc) acc.w
+#elif VECSIZE == 8
+#define VECSCAN(acc) \
+	acc.s1 += acc.s0; \
+	acc.s2 += acc.s1; \
+	acc.s3 += acc.s2; \
+	acc.s4 += acc.s3; \
+	acc.s5 += acc.s4; \
+	acc.s6 += acc.s5; \
+	acc.s7 += acc.s6
+#define LASTOF(acc) acc.s7
+#elif VECSIZE == 16
+#define VECSCAN(acc) \
+	acc.s1 += acc.s0; \
+	acc.s2 += acc.s1; \
+	acc.s3 += acc.s2; \
+	acc.s4 += acc.s3; \
+	acc.s5 += acc.s4; \
+	acc.s6 += acc.s5; \
+	acc.s7 += acc.s6; \
+	acc.s8 += acc.s7; \
+	acc.s9 += acc.s8; \
+	acc.sa += acc.s9; \
+	acc.sb += acc.sa; \
+	acc.sc += acc.sb; \
+	acc.sd += acc.sc; \
+	acc.se += acc.sd; \
+	acc.sf += acc.se
+#define LASTOF(acc) acc.sf
+#else
+#error "Only vector sizes of 2, 4, 8 and 16 are supported"
+#endif
+#else
+#define VECTYPE TYPE
+#define VECSCAN(acc) /* nothing */
+#define LASTOF(acc) acc
+#endif
+
+#ifndef FMIN_OP /* TODO, not supported yet */
+#define FMIN_OP(acc, el) acc = fmin(acc, el)
+#define FMIN_OP_NULL NAN
+#endif
+
+#ifndef ADD_OP
+#define ADD_OP(acc, el) acc += el
+#define ADD_OP_NULL 0
+#endif
+
+#if !defined(OP)
+#error "Please define an OP"
+#endif
+
+#if !defined(OP_NULL)
+#error "Please define an OP_NULL"
+#endif
+
+TYPE local_scan(
+	__global VECTYPE * restrict output,
+	__global const VECTYPE * restrict input,
+	__local TYPE * lmem,
+	uint numels,
+	uint offset,
+	const uint last_offset)
+{
+	TYPE reduction_prev_pass = 0;
+	VECTYPE data = (VECTYPE)(0);
+
+	const int li = get_local_id(0);
+	const int lws = get_local_size(0);
+
+	uint toggle = 1;
+	/* read/write offset in local memory */
+	uint write = toggle*lws;
+	uint read = (1-toggle)*lws;
+
+	while (offset < last_offset) {
+		/* index in global memory */
+		uint gi = get_local_id(0) + offset;
+
+		/* load from gmem, microscan */
+		if (gi < numels/VECSIZE) {
+			data = input[gi];
+			VECSCAN(data);
+		} else {
+			data = (VECTYPE)(0);
+		}
+
+		/* reduce the data 'tails' */
+
+		/* load in lmem */
+		barrier(CLK_LOCAL_MEM_FENCE);
+		lmem[read + li] = LASTOF(data);
+		lmem[write + li] = 0;
+
+		uint stride = 1;
+		const uint stride_end = lws/2;
+
+		while (stride <= stride_end) {
+			barrier(CLK_LOCAL_MEM_FENCE);
+			lmem[write + li] = lmem[read + li];
+			if (li >= stride)
+				OP(lmem[write + li], lmem[read + li - stride]);
+			stride *= 2;
+			toggle = 1 - toggle;
+			write = toggle*lws;
+			read = (1-toggle)*lws;
+		}
+
+		/* augment data with the result of the scan of previous microscan residues */
+		barrier(CLK_LOCAL_MEM_FENCE);
+		if (li > 0)
+			data += (VECTYPE)(lmem[read + li - 1]);
+		/* and the residue from the previous pass */
+		data += (VECTYPE)(reduction_prev_pass);
+
+		if (gi < numels/VECSIZE)
+			output[gi] = data;
+
+		/* augment the residual of the previous pass by the residual of this pass */
+		reduction_prev_pass += lmem[read + lws - 1];
+		offset += lws;
+	}
+
+	return reduction_prev_pass;
+}
+
+/* first step: each work-group scans a chunk of els_per_wg vector elements,
+ * storing the last vaue (the reduction) in an auxiliary array */
+__kernel
+void first_scan_step(
+	/* output buffer */
+	__global VECTYPE * restrict scan,
+	/* aux buffer */
+	__global TYPE * restrict aux,
+	/* input buffer */
+	__global const VECTYPE * restrict v1,
+	/* local storage for scan */
+	__local TYPE * lmem,
+	uint numels, uint els_per_wg) {
+
+	uint offset = els_per_wg*get_group_id(0)/VECSIZE;
+	const uint last_offset = offset + els_per_wg/VECSIZE;
+
+	TYPE reduction_prev_pass = local_scan(scan, v1, lmem, numels, offset, last_offset);
+
+	if (get_local_id(0) == 0)
+		aux[get_group_id(0)] = reduction_prev_pass;
+}
+
+/* scan the auxiliary array with a single work-group */
+__kernel
+void aux_scan_step(__global VECTYPE * restrict aux,
+	__local TYPE * lmem, uint numels)
+{
+	const uint li = get_local_id(0);
+	const uint lws = get_local_size(0);
+
+	uint offset = 0;
+	const uint last_offset = offset + numels/VECSIZE;
+
+	local_scan(aux, aux, lmem, numels, offset, last_offset);
+}
+
+
+/* add the scan of the reductions of the chunks of the first pass
+   to each element */
+__kernel
+void last_scan_step(__global TYPE * restrict scan,
+	__global const TYPE * restrict aux,
+	TYPE numels, TYPE els_per_chunk)
+{
+	// els_per_chunk: number of elements in each chunk of the first scan
+	// aux: array of the scan of the reductions of each chunk
+
+	const TYPE gi = get_global_id(0);
+
+	if (gi >= numels)
+		return;
+
+	/* load the element */
+	TYPE acc = scan[gi];
+
+	/* which chunk was it in? */
+	const TYPE chunk = gi/els_per_chunk;
+	/* if not first chunk, add reduction of previous chunks */
+	if (chunk > 0)
+		acc += aux[chunk - 1];
+
+	scan[gi] = acc;
+}
+
