@@ -315,4 +315,121 @@ void parse_options(int argc, char **argv)
 
 }
 
+/* auxiliary buffer to read platform and device info */
+char buffer[1024];
+
+
+cl_platform_id select_platform(void)
+{
+	/* platform selection */        // variable declaration
+	cl_uint num_platforms = 0;
+	cl_platform_id *platform_list = NULL;
+	cl_platform_id platform = NULL;
+
+	clGetPlatformIDs(0, NULL, &num_platforms); //retrieve number of platform IDs
+	platform_list = (cl_platform_id *)calloc(num_platforms,
+			sizeof(cl_platform_id));
+	cl_int error = clGetPlatformIDs(num_platforms, platform_list, NULL); // retrieve the actual platform IDs
+
+	check_ocl_error(error, "getting platform IDs");
+
+	printf("%d OpenCL platforms found:\n", num_platforms);
+
+	for (cl_uint i = 0; i < num_platforms; ++i) {
+		/* last param: actual size of the query result */
+		error = clGetPlatformInfo(platform_list[i], CL_PLATFORM_NAME,
+				sizeof(buffer), buffer, NULL);
+		check_ocl_error(error, "getting platform name");
+		printf("\tplatform %u: %s ", i, buffer);
+		error = clGetPlatformInfo(platform_list[i], CL_PLATFORM_VENDOR,
+				sizeof(buffer), buffer, NULL);
+		check_ocl_error(error, "getting platform vendor");
+		printf(" (%s)\n", buffer);
+	}
+
+	platform = platform_list[options.platform];
+	printf("using platform %u\n", options.platform);
+
+	return platform;
+}
+
+cl_device_id select_device(cl_platform_id platform)
+{
+	/* device selection */
+
+	cl_uint num_devs = 0;
+	cl_device_id *dev_list = NULL;
+	cl_device_id dev = NULL;
+
+	/* possible types: CPU, GPU, ACCELERATOR, DEFAULT, ALL */
+	clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, 0, NULL, &num_devs);
+	dev_list = (cl_device_id *)calloc(num_devs, sizeof(cl_device_id));
+	cl_int error = clGetDeviceIDs(platform, CL_DEVICE_TYPE_ALL, num_devs,
+			dev_list, NULL);
+
+	check_ocl_error(error, "getting device IDs");
+
+	printf("%d devs found:\n", num_devs);
+
+	for (cl_uint i = 0; i < num_devs; ++i) {
+		/* last param: actual size of the query result */
+		error = clGetDeviceInfo(dev_list[i], CL_DEVICE_NAME,
+				sizeof(buffer), buffer, NULL);
+		check_ocl_error(error, "getting device name");
+		printf("\tdev %u: %s\n", i, buffer);
+	}
+
+	dev = dev_list[options.device];
+	printf("using device %u\n", options.device);
+
+	error = clGetDeviceInfo(dev, CL_DEVICE_TYPE,
+			sizeof(dev_info.dev_type), &dev_info.dev_type,
+			NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_COMPUTE_UNITS,
+			sizeof(dev_info.compute_units), &dev_info.compute_units,
+			NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_GLOBAL_MEM_SIZE,
+			sizeof(dev_info.mem_size), &dev_info.mem_size,
+			NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_MEM_ALLOC_SIZE,
+			sizeof(dev_info.max_alloc), &dev_info.max_alloc,
+			NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_LOCAL_MEM_SIZE,
+			sizeof(dev_info.local_mem_size), &dev_info.local_mem_size,
+			NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_HOST_UNIFIED_MEMORY,
+			sizeof(dev_info.host_mem), &dev_info.host_mem, NULL);
+	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_ITEM_SIZES,
+			3*sizeof(*dev_info.max_wi_size), dev_info.max_wi_size, NULL);
+	check_ocl_error(error, "checking device properties");
+
+	printf("Device has %u compute units, %lu local memory, %lu (%luMB) %s memory with max alloc of %lu (%luMB)\n",
+			dev_info.compute_units, dev_info.local_mem_size,
+			dev_info.mem_size, dev_info.mem_size >> 20,
+			dev_info.host_mem ? "unified host" : "separate",
+			dev_info.max_alloc, dev_info.max_alloc >> 20);
+
+	return dev;
+}
+
+cl_context create_context(cl_platform_id pid, cl_device_id dev) {
+	/* creating a context for one dev */
+
+	cl_context_properties props[] = {
+		CL_CONTEXT_PLATFORM, (cl_context_properties)pid,
+		0
+	};
+	cl_int err;
+
+	cl_context ctx = clCreateContext(props, 1, &dev, NULL, NULL, &err);
+	check_ocl_error(err, "create context");
+	return ctx;
+}
+
+cl_command_queue create_queue(cl_context ctx, cl_device_id dev) {
+	cl_int err;
+	cl_command_queue que = clCreateCommandQueue(ctx, dev, CL_QUEUE_PROFILING_ENABLE, &err);
+	check_ocl_error(err, "create command queue");
+	return que;
+}
 
