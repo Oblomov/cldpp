@@ -161,8 +161,8 @@ void first_scan_step(
 	__global const VECTYPE * restrict v1,
 	/* local storage for scan */
 	__local TYPE * lmem,
-	uint numels, uint els_per_wg) {
-
+	uint numels, uint els_per_wg)
+{
 	uint offset = els_per_wg*get_group_id(0)/VECSIZE;
 	const uint last_offset = offset + els_per_wg/VECSIZE;
 
@@ -188,29 +188,30 @@ void aux_scan_step(__global VECTYPE * restrict aux,
 
 
 /* add the scan of the reductions of the chunks of the first pass
-   to each element */
+   to each element. This is launched for one group less than the first pass,
+   since elements in the first group do not need any correction.
+   Note that this kernel must be launched with the same grid config as the first pass.
+ */
 __kernel
-void last_scan_step(__global TYPE * restrict scan,
+void last_scan_step(__global VECTYPE * restrict scan,
 	__global const TYPE * restrict aux,
-	TYPE numels, TYPE els_per_chunk)
+	uint numels, uint els_per_wg)
 {
-	// els_per_chunk: number of elements in each chunk of the first scan
-	// aux: array of the scan of the reductions of each chunk
+	const int prev_chunk = get_group_id(0);
+	const int this_chunk = prev_chunk + 1;
+	uint offset = els_per_wg*this_chunk/VECSIZE;
+	const uint last_offset = offset + els_per_wg/VECSIZE;
 
-	const TYPE gi = get_global_id(0);
+	while (offset < last_offset) {
+		uint gi = get_local_id(0) + offset;
 
-	if (gi >= numels)
-		return;
+		if (gi >= numels/VECSIZE)
+			return;
 
-	/* load the element */
-	TYPE acc = scan[gi];
+		/* load the element */
+		scan[gi] += (VECTYPE)(aux[prev_chunk]);
 
-	/* which chunk was it in? */
-	const TYPE chunk = gi/els_per_chunk;
-	/* if not first chunk, add reduction of previous chunks */
-	if (chunk > 0)
-		acc += aux[chunk - 1];
-
-	scan[gi] = acc;
+		offset += get_local_size(0);
+	}
 }
 

@@ -60,7 +60,7 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 
 	check_ocl_error(error, "scan#1 enqueue");
 
-	gws = ROUND_MUL(options.elements, scan_lws);
+	gws = (options.groups-1)*scan_lws;
 
 	error = clSetKernelArg(scan_krn[2], 0, sizeof(d_output), &d_output);
 	check_ocl_error(error, "scan#2 arg 0");
@@ -311,8 +311,8 @@ int main(int argc, char *argv[])
 		const size_t scan_data_size = 4*data_size + 3*options.groups*sizeof(TYPE);
 		printf("Bandwidth: %.4g GB/s\n", (double)scan_data_size/(endTime-startTime));
 		printf("Scan performance: %.4g GE/s\n", (double)options.elements/(endTime-startTime));
-		printf("SUMMARY: %6zu × %u + %4zu × 1 + %6zu × %9zu => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
-			ws, options.groups, ws_second, ws, ROUND_MUL(options.elements, ws)/ws,
+		printf("SUMMARY: %6zu × %u + %4zu × 1 + %6zu × %u => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
+			ws, options.groups, ws_second, ws, options.groups - 1,
 			(endTime - startTime)/1000000.0,
 			(double)scan_data_size/(endTime - startTime),
 			(double)options.elements/(endTime-startTime));
