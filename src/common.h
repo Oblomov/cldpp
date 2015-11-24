@@ -77,8 +77,8 @@ cl_event pass_evt[2];
 	} while (0);
 
 /* macro to set the next kernel argument */
-#define KERNEL_ARG(what) do {\
-	error = clSetKernelArg(reduceKernel, argnum++, sizeof(what), &(what)); \
+#define KERNEL_ARG(krn, what) do {\
+	error = clSetKernelArg(krn, argnum++, sizeof(what), &(what)); \
 	check_ocl_error(error, "setting kernel param"); \
 	} while(0)
 
@@ -431,5 +431,52 @@ cl_command_queue create_queue(cl_context ctx, cl_device_id dev) {
 	cl_command_queue que = clCreateCommandQueue(ctx, dev, CL_QUEUE_PROFILING_ENABLE, &err);
 	check_ocl_error(err, "create command queue");
 	return que;
+}
+
+cl_program create_program(const char *fname, cl_context ctx, cl_device_id dev)
+{
+	char *prog_source = read_file(fname);
+	if (prog_source == NULL)
+		exit(1);
+
+	cl_int error;
+
+	cl_program program = clCreateProgramWithSource(ctx, 1,
+			(const char **)&prog_source, NULL, &error);
+	check_ocl_error(error, "creating program");
+
+	cl_int build_error = clBuildProgram(program,
+			1, &dev, // device(s)
+			clbuild,
+			NULL, // callback
+			NULL);
+	size_t logSize = 0;
+	char *log;
+	error = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
+			0, NULL, &logSize);
+	check_ocl_error(error, "getting program build info size");
+	/* the log is NULL-terminated, so if it's empty it has size 1 */
+	if (logSize > 1) {
+		log = (char *)malloc(logSize);
+		error = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
+				logSize, log, NULL);
+		check_ocl_error(error, "getting program build info");
+		/* some platforms return a \n-terminated log, others don't.
+		   equalize by stripping out all the final \n's */
+		while (logSize > 1) {
+			if (log[logSize - 2] == '\n') {
+				log[logSize - 2] = 0;
+				--logSize;
+			} else break;
+		}
+		/* if we still have something, print the build info */
+		if (logSize > 1)
+			fprintf(stderr, "Program build info:\n%s\n", log);
+	}
+
+	if (build_error == CL_BUILD_PROGRAM_FAILURE)
+		exit(1);
+
+	return program;
 }
 

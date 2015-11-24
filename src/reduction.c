@@ -132,16 +132,6 @@ int main(int argc, char **argv) {
 			options.groups*sizeof(TYPE), NULL, &error);
 	check_ocl_error(error, "allocating output memory buffer");
 
-	/* load and build program */
-
-	char *prog_source = read_file("reduction_kernels.ocl");
-	if (prog_source == NULL)
-		exit(1);
-
-	cl_program program = clCreateProgramWithSource(ctx, 1,
-			(const char **)&prog_source, NULL, &error);
-	check_ocl_error(error, "creating program");
-
 	clbuild_add(KDEFS);
 
 	if (clbuild_next > OPTBUFSIZE) {
@@ -151,37 +141,8 @@ int main(int argc, char **argv) {
 		printf("compiler options: %s\n", clbuild);
 	}
 
-	cl_int build_error = clBuildProgram(program,
-			1, &dev, // device(s)
-			clbuild,
-			NULL, // callback
-			NULL);
-	size_t logSize = 0;
-	char *log;
-	error = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
-			0, NULL, &logSize);
-	check_ocl_error(error, "getting program build info size");
-	/* the log is NULL-terminated, so if it's empty it has size 1 */
-	if (logSize > 1) {
-		log = (char *)malloc(logSize);
-		error = clGetProgramBuildInfo(program, dev, CL_PROGRAM_BUILD_LOG,
-				logSize, log, NULL);
-		check_ocl_error(error, "getting program build info");
-		/* some platforms return a \n-terminated log, others don't.
-		   equalize by stripping out all the final \n's */
-		while (logSize > 1) {
-			if (log[logSize - 2] == '\n') {
-				log[logSize - 2] = 0;
-				--logSize;
-			} else break;
-		}
-		/* if we still have something, print the build info */
-		if (logSize > 1)
-			fprintf(stderr, "Program build info:\n%s\n", log);
-	}
-
-	if (build_error == CL_BUILD_PROGRAM_FAILURE)
-		exit(1);
+	/* load and build program */
+	cl_program program = create_program("reduction_kernels.ocl", ctx, dev);
 
 	char kname[] = "reduce";
 
@@ -245,12 +206,12 @@ int main(int argc, char **argv) {
 		work_size[0] = group_size[0]*options.groups;
 
 		int argnum = 0;
-		KERNEL_ARG(d_input);
+		KERNEL_ARG(reduceKernel, d_input);
 		error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
 		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(vecelements);
-		KERNEL_ARG(d_output);
+		KERNEL_ARG(reduceKernel, vecelements);
+		KERNEL_ARG(reduceKernel, d_output);
 
 		/* launch kernel, with an event to collect profiling info */
 
@@ -264,12 +225,12 @@ int main(int argc, char **argv) {
 		group_size[0] = work_size[0] = ws_second;
 
 		argnum = 0;
-		KERNEL_ARG(d_output);
+		KERNEL_ARG(reduceKernel, d_output);
 		error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
 		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(vecgroups);
-		KERNEL_ARG(d_output);
+		KERNEL_ARG(reduceKernel, vecgroups);
+		KERNEL_ARG(reduceKernel, d_output);
 
 		clEnqueueNDRangeKernel(queue, reduceKernel,
 				1,
