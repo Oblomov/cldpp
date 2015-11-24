@@ -93,10 +93,9 @@ TYPE local_scan(
 	const int li = get_local_id(0);
 	const int lws = get_local_size(0);
 
-	uint toggle = 1;
 	/* read/write offset in local memory */
-	uint write = toggle*lws;
-	uint read = (1-toggle)*lws;
+	uint write = lws;
+	uint read = 0;
 
 	while (offset < last_offset) {
 		/* index in global memory */
@@ -126,9 +125,8 @@ TYPE local_scan(
 			if (li >= stride)
 				OP(lmem[write + li], lmem[read + li - stride]);
 			stride *= 2;
-			toggle = 1 - toggle;
-			write = toggle*lws;
-			read = (1-toggle)*lws;
+			write = (lws - write);
+			read = (lws - read);
 		}
 
 		/* augment data with the result of the scan of previous microscan residues */
