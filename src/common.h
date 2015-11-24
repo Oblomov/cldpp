@@ -53,7 +53,6 @@ struct options_t {
 } options;
 
 cl_ulong startTime, endTime;
-cl_event pass_evt[2];
 
 /* macro to get and display the runtime associated with an event */
 #define GET_RUNTIME(evt, text) do {\

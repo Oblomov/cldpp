@@ -1,5 +1,7 @@
 #include "common.h"
 
+cl_event pass_evt[2];
+
 int main(int argc, char **argv) {
 
 	/* defaults */
