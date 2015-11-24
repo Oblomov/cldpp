@@ -106,7 +106,7 @@ int main(int argc, char *argv[])
 		if (options.cugroups)
 			options.groups = options.cugroups*dev_info.compute_units;
 		else if (dev_info.dev_type == CL_DEVICE_TYPE_GPU)
-			options.groups = 6*dev_info.compute_units;
+			options.groups = 8*dev_info.compute_units;
 		else
 			options.groups = dev_info.compute_units;
 	}
