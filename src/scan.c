@@ -113,16 +113,6 @@ int main(int argc, char *argv[])
 	if (options.vecsize > 1)
 		options.groups = ROUND_MUL(options.groups, options.vecsize);
 
-	/* Round number of groups to power of two */
-	if (!is_po2(options.groups)) {
-		/* not power-of-two, fix */
-		const size_t oldval = options.groups;
-		const size_t newval = fix_po2(oldval);
-		fprintf(stderr, "number of groups %zu is not a power of two,"
-			" rounding to %zu.\n", oldval, newval);
-		options.groups = newval;
-	}
-
 	printf("Scan will use %u groups (%g groups/CU)\n",
 		options.groups, (double)options.groups/dev_info.compute_units);
 
