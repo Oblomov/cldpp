@@ -26,7 +26,7 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	check_ocl_error(error, "scan#0 arg 1");
 	error = clSetKernelArg(scan_krn[0], 2, sizeof(d_input), &d_input);
 	check_ocl_error(error, "scan#0 arg 2");
-	error = clSetKernelArg(scan_krn[0], 3, 2*scan_lws*sizeof(TYPE), NULL);
+	error = clSetKernelArg(scan_krn[0], 3, scan_lws*sizeof(TYPE), NULL);
 	check_ocl_error(error, "scan#0 arg 3");
 	error = clSetKernelArg(scan_krn[0], 4, sizeof(options.elements), &options.elements);
 	check_ocl_error(error, "scan#0 arg 4");
@@ -48,7 +48,7 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	printf("Aux: %zu wi/wg\n", aux_lws);
 	error = clSetKernelArg(scan_krn[1], 0, sizeof(d_scan_aux), &d_scan_aux);
 	check_ocl_error(error, "scan#1 arg 0");
-	error = clSetKernelArg(scan_krn[1], 1, 2*aux_lws*sizeof(cl_uint), NULL);
+	error = clSetKernelArg(scan_krn[1], 1, aux_lws*sizeof(cl_uint), NULL);
 	check_ocl_error(error, "scan#0 arg 1");
 	error = clSetKernelArg(scan_krn[1], 2, sizeof(options.groups), &options.groups);
 	check_ocl_error(error, "scan#0 arg 2");

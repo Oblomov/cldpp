@@ -93,10 +93,6 @@ TYPE local_scan(
 	const int li = get_local_id(0);
 	const int lws = get_local_size(0);
 
-	/* read/write offset in local memory */
-	uint write = lws;
-	uint read = 0;
-
 	/* index in global memory */
 	uint gi = get_local_id(0) + offset;
 	const uint gi_end = get_local_id(0) + last_offset;
@@ -116,7 +112,7 @@ TYPE local_scan(
 
 		/* load in lmem */
 		barrier(CLK_LOCAL_MEM_FENCE);
-		lmem[read + li] = tail;
+		lmem[li] = tail;
 
 		uint stride = 1;
 		const uint stride_end = lws/2;
@@ -124,17 +120,16 @@ TYPE local_scan(
 		while (stride <= stride_end) {
 			barrier(CLK_LOCAL_MEM_FENCE);
 			if (li >= stride)
-				OP(tail, lmem[read + li - stride]);
-			lmem[write + li] = tail;
+				OP(tail, lmem[li - stride]);
+			barrier(CLK_LOCAL_MEM_FENCE);
+			lmem[li] = tail;
 			stride *= 2;
-			write = (lws - write);
-			read = (lws - read);
 		}
 
 		/* augment data with the result of the scan of previous microscan residues */
 		barrier(CLK_LOCAL_MEM_FENCE);
 		if (li > 0)
-			data += (VECTYPE)(lmem[read + li - 1]);
+			data += (VECTYPE)(lmem[li - 1]);
 		/* and the residue from the previous pass */
 		data += (VECTYPE)(reduction_prev_pass);
 
@@ -142,7 +137,7 @@ TYPE local_scan(
 			output[gi] = data;
 
 		/* augment the residual of the previous pass by the residual of this pass */
-		reduction_prev_pass += lmem[read + lws - 1];
+		reduction_prev_pass += lmem[lws - 1];
 		gi += lws;
 	}
 
