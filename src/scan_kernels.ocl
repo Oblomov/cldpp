@@ -112,19 +112,20 @@ TYPE local_scan(
 
 		/* reduce the data 'tails' */
 
+		TYPE tail = LASTOF(data);
+
 		/* load in lmem */
 		barrier(CLK_LOCAL_MEM_FENCE);
-		lmem[read + li] = LASTOF(data);
-		lmem[write + li] = 0;
+		lmem[read + li] = tail;
 
 		uint stride = 1;
 		const uint stride_end = lws/2;
 
 		while (stride <= stride_end) {
 			barrier(CLK_LOCAL_MEM_FENCE);
-			lmem[write + li] = lmem[read + li];
 			if (li >= stride)
-				OP(lmem[write + li], lmem[read + li - stride]);
+				OP(tail, lmem[read + li - stride]);
+			lmem[write + li] = tail;
 			stride *= 2;
 			write = (lws - write);
 			read = (lws - read);
