@@ -197,14 +197,16 @@ void last_scan_step(__global VECTYPE * restrict scan,
 	uint offset = els_per_wg*this_chunk/VECSIZE;
 	const uint last_offset = offset + els_per_wg/VECSIZE;
 
+	const VECTYPE correction = (VECTYPE)(aux[prev_chunk]);
+
 	while (offset < last_offset) {
 		uint gi = get_local_id(0) + offset;
 
 		if (gi >= numels/VECSIZE)
 			return;
 
-		/* load the element */
-		scan[gi] += (VECTYPE)(aux[prev_chunk]);
+		/* correct the element */
+		scan[gi] += correction;
 
 		offset += get_local_size(0);
 	}
