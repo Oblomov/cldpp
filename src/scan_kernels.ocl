@@ -13,6 +13,30 @@
 #define _TOK(a, b) a##b
 #define TOK(a, b) _TOK(a, b)
 
+#ifndef FMIN_OP /* TODO, not supported yet */
+#define FMIN_OP(acc, el) acc = fmin(acc, el)
+#define FMIN_OP_NULL NAN
+#endif
+
+#ifndef ADD_OP
+#define ADD_OP(acc, el) acc += el
+#define ADD_OP_NULL 0
+#endif
+
+#if !defined(OP)
+#error "Please define an OP"
+#endif
+
+#if !defined(OP_NULL)
+#error "Please define an OP_NULL"
+#endif
+
+/* The VECSIZE is the vector width of the data type when reading from global memory.
+   A VECSIZE of 1 means that each work-item reads elements one at a time, while
+   e.g. a VECSIZE of 4 means that (if the datatype is int) each work-item reads
+   an int4 at a time, while still reducing everythig to single ints. */
+
+/* TODO: define VECREDUCE based on OP */
 #if VECSIZE > 1
 #define VECTYPE TOK(TYPE, VECSIZE)
 #if VECSIZE == 2
@@ -59,24 +83,6 @@
 #define VECTYPE TYPE
 #define VECSCAN(acc) /* nothing */
 #define LASTOF(acc) acc
-#endif
-
-#ifndef FMIN_OP /* TODO, not supported yet */
-#define FMIN_OP(acc, el) acc = fmin(acc, el)
-#define FMIN_OP_NULL NAN
-#endif
-
-#ifndef ADD_OP
-#define ADD_OP(acc, el) acc += el
-#define ADD_OP_NULL 0
-#endif
-
-#if !defined(OP)
-#error "Please define an OP"
-#endif
-
-#if !defined(OP_NULL)
-#error "Please define an OP_NULL"
 #endif
 
 TYPE local_scan(

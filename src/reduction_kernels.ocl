@@ -18,8 +18,30 @@
 #define _TOK(a, b) a##b
 #define TOK(a, b) _TOK(a, b)
 
+#ifndef FMIN_OP
+#define FMIN_OP(acc, el) acc = fmin(acc, el)
+#define FMIN_OP_NULL NAN
+#endif
+
+#ifndef ADD_OP
+#define ADD_OP(acc, el) acc += el
+#define ADD_OP_NULL 0
+#endif
+
+#if !defined(OP)
+#error "Please define an OP"
+#endif
+
+#if !defined(OP_NULL)
+#error "Please define an OP_NULL"
+#endif
+
+/* TODO: define VECREDUCE based on OP */
 #if VECSIZE > 1
 #define VECTYPE TOK(TYPE, VECSIZE)
+#if OP != ADD_OP
+#error "VECSIZE > 1 only supported for ADD_OP"
+#endif
 #if VECSIZE == 2
 #define VECREDUCE(acc) acc.x + acc.y
 #elif VECSIZE == 4
@@ -38,24 +60,6 @@
 #else
 #define VECTYPE TYPE
 #define VECREDUCE(acc) acc
-#endif
-
-#ifndef FMIN_OP
-#define FMIN_OP(acc, el) acc = fmin(acc, el)
-#define FMIN_OP_NULL NAN
-#endif
-
-#ifndef ADD_OP
-#define ADD_OP(acc, el) acc += el
-#define ADD_OP_NULL 0
-#endif
-
-#if !defined(OP)
-#error "Please define an OP"
-#endif
-
-#if !defined(OP_NULL)
-#error "Please define an OP_NULL"
 #endif
 
 __kernel void reduce(__global const VECTYPE* restrict input,
