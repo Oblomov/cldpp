@@ -36,6 +36,11 @@
 #error "Please define an OP_NULL"
 #endif
 
+/* The VECSIZE is the vector width of the data type when reading from global memory.
+   A VECSIZE of 1 means that each work-item reads elements one at a time, while
+   e.g. a VECSIZE of 4 means that (if the datatype is int) each work-item reads
+   an int4 at a time, while still reducing everythig to single ints. */
+
 /* TODO: define VECREDUCE based on OP */
 #if VECSIZE > 1
 #define VECTYPE TOK(TYPE, VECSIZE)
@@ -61,6 +66,18 @@
 #define VECTYPE TYPE
 #define VECREDUCE(acc) acc
 #endif
+
+/* The LOCAL_VECSIZE is the number of elements reduced in local memory
+   by each active work-item. By default it's 2.
+   The local work size should be a power of LOCAL_VECSIZE. */
+#ifndef LOCAL_VECSIZE
+#define LOCAL_VECSIZE 2
+#endif
+
+#if LOCAL_VECSIZE < 2
+#error "LOCAL_VECSIZE should be at least 2"
+#endif
+
 
 __kernel void reduce(__global const VECTYPE* restrict input,
 		__local volatile TYPE* restrict scratch,
@@ -142,6 +159,10 @@ __kernel void reduce(__global const VECTYPE* restrict input,
 	scratch[lid] = acc;
 
 #ifdef WAVE_SIZE
+	/*  TODO support LOCAL_VECSIZE != 2 */
+#if LOCAL_VECSIZE != 2
+#warning "LOCAL_VECSIZE != 2 ignored"
+#endif
 	uint wave_num = lid / WAVE_SIZE;
 	uint wid = lid - (wave_num * WAVE_SIZE);
 	for (uint offset = WAVE_SIZE/2; offset; offset /= 2) {
@@ -165,13 +186,20 @@ __kernel void reduce(__global const VECTYPE* restrict input,
 		}
 	}
 #else
-	for (uint offset = get_local_size(0)/2; offset; offset /= 2) {
+	for (uint offset = get_local_size(0)/LOCAL_VECSIZE; offset; offset /= LOCAL_VECSIZE) {
 #ifndef SMALL_WORKGROUP
 		barrier(CLK_LOCAL_MEM_FENCE);
 #endif
 		if (lid < offset) {
 			TYPE other = scratch[lid+offset];
 			OP(acc, other);
+#if LOCAL_VECSIZE > 2
+#pragma unroll
+			for (int next = 2; next < LOCAL_VECSIZE; ++next) {
+				other = scratch[lid+next*offset];
+				OP(acc, other);
+			}
+#endif
 			scratch[lid] = acc;
 		}
 	}
