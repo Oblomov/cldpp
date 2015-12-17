@@ -144,7 +144,7 @@ __kernel void reduce(__global const VECTYPE* restrict input,
 #ifdef WAVE_SIZE
 	uint wave_num = lid / WAVE_SIZE;
 	uint wid = lid - (wave_num * WAVE_SIZE);
-	for (uint offset = WAVE_SIZE/2; offset; offset >>= 1) {
+	for (uint offset = WAVE_SIZE/2; offset; offset /= 2) {
 		/* in-wave reductions don't need a barrier */
 		//barrier(CLK_LOCAL_MEM_FENCE);
 		if (wid < offset) {
@@ -165,7 +165,7 @@ __kernel void reduce(__global const VECTYPE* restrict input,
 		}
 	}
 #else
-	for (uint offset = get_local_size(0)/2; offset; offset >>= 1) {
+	for (uint offset = get_local_size(0)/2; offset; offset /= 2) {
 #ifndef SMALL_WORKGROUP
 		barrier(CLK_LOCAL_MEM_FENCE);
 #endif
