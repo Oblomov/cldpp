@@ -179,7 +179,7 @@ char *read_file(const char *fname) {
 
 	if (!full_path) {
 		fprintf(stderr, "unable to allocate read_file path buffer\n");
-		return NULL;
+		goto exit;
 	}
 
 	while (!fd && *path) {
@@ -192,7 +192,7 @@ char *read_file(const char *fname) {
 
 	if (!fd) {
 		fprintf(stderr, "%s not found\n", fname);
-		return NULL;
+		goto exit;
 	} else {
 		printf("loading %s\n", full_path);
 	}
@@ -203,20 +203,25 @@ char *read_file(const char *fname) {
 	buff = malloc(fsize + 1);
 	if (!buff) {
 		fprintf(stderr, "unable to allocate buffer for reading\n");
-		return NULL;
+		goto exit;
 	}
 
 	rewind(fd);
 	readsize = fread(buff, 1, fsize, fd);
 	if (fsize != readsize) {
-		fprintf(stderr, "could only read %lu/%lu bytes from %s\n",
+		fprintf(stderr, "could only read %zu/%zu bytes from %s\n",
 				readsize, fsize, fname);
-		free(buff);
-		return NULL;
+		free(buff); buff = NULL;
+		goto exit;
 	}
 	buff[fsize] = '\0';
 
-	printf("read %lu bytes from %s\n", fsize, fname);
+	printf("read %zu bytes from %s\n", fsize, fname);
+
+exit:
+	if (fd)
+		fclose(fd);
+	free(full_path);
 
 	return buff;
 }
