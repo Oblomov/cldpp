@@ -316,5 +316,8 @@ int main(int argc, char *argv[])
 	clReleaseMemObject(d_output);
 	clReleaseMemObject(d_scan_aux);
 
+	free(host_res) ; host_res = NULL;
+	free(data); data = NULL;
+
 	return 0;
 }
