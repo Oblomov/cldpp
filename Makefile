@@ -1,5 +1,5 @@
 CFLAGS += -std=c99 -pedantic
-CPPFLAGS += -Wall -Wextra -Werror
+CPPFLAGS += -Wall -Wextra -Werror -Wno-deprecated-declarations
 LDLIBS +=-lOpenCL
 SRCDIR = src
 TARGETS = $(foreach source,$(wildcard $(SRCDIR)/*.c),\
