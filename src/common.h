@@ -381,26 +381,20 @@ cl_device_id select_device(cl_platform_id platform)
 	dev = dev_list[options.device];
 	printf("using device %u\n", options.device);
 
-	error = clGetDeviceInfo(dev, CL_DEVICE_TYPE,
-			sizeof(dev_info.dev_type), &dev_info.dev_type,
-			NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_COMPUTE_UNITS,
-			sizeof(dev_info.compute_units), &dev_info.compute_units,
-			NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_GLOBAL_MEM_SIZE,
-			sizeof(dev_info.mem_size), &dev_info.mem_size,
-			NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_MEM_ALLOC_SIZE,
-			sizeof(dev_info.max_alloc), &dev_info.max_alloc,
-			NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_LOCAL_MEM_SIZE,
-			sizeof(dev_info.local_mem_size), &dev_info.local_mem_size,
-			NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_HOST_UNIFIED_MEMORY,
-			sizeof(dev_info.host_mem), &dev_info.host_mem, NULL);
-	error = clGetDeviceInfo(dev, CL_DEVICE_MAX_WORK_ITEM_SIZES,
-			3*sizeof(*dev_info.max_wi_size), dev_info.max_wi_size, NULL);
-	check_ocl_error(error, "checking device properties");
+#define GET_INFO(info, field) do { \
+	error = clGetDeviceInfo(dev, info, \
+			sizeof(dev_info.field), &dev_info.field, \
+			NULL); \
+	check_ocl_error(error, "getting device property " #info); \
+} while(0)
+
+	GET_INFO(CL_DEVICE_TYPE, dev_type);
+	GET_INFO(CL_DEVICE_MAX_COMPUTE_UNITS, compute_units);
+	GET_INFO(CL_DEVICE_GLOBAL_MEM_SIZE, mem_size);
+	GET_INFO(CL_DEVICE_MAX_MEM_ALLOC_SIZE, max_alloc);
+	GET_INFO(CL_DEVICE_LOCAL_MEM_SIZE, local_mem_size);
+	GET_INFO(CL_DEVICE_HOST_UNIFIED_MEMORY, host_mem);
+	GET_INFO(CL_DEVICE_MAX_WORK_ITEM_SIZES, max_wi_size);
 
 	printf("Device has %u compute units, %lu local memory, %lu (%luMB) %s memory with max alloc of %lu (%luMB)\n",
 			dev_info.compute_units, dev_info.local_mem_size,
