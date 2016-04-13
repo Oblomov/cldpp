@@ -354,6 +354,8 @@ cl_platform_id select_platform(void)
 	platform = platform_list[options.platform];
 	printf("using platform %u\n", options.platform);
 
+	free(platform_list);
+
 	return platform;
 }
 
@@ -406,6 +408,8 @@ cl_device_id select_device(cl_platform_id platform)
 			dev_info.mem_size, dev_info.mem_size >> 20,
 			dev_info.host_mem ? "unified host" : "separate",
 			dev_info.max_alloc, dev_info.max_alloc >> 20);
+
+	free(dev_list);
 
 	return dev;
 }
