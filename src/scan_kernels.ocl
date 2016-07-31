@@ -112,7 +112,7 @@ TYPE local_scan(
 			data = (VECTYPE)(0);
 		}
 
-		/* reduce the data 'tails' */
+		/* scan the data 'tails' */
 
 		TYPE tail = LASTOF(data);
 
@@ -135,9 +135,9 @@ TYPE local_scan(
 		/* augment data with the result of the scan of previous microscan residues */
 		barrier(CLK_LOCAL_MEM_FENCE);
 		if (li > 0)
-			data += (VECTYPE)(lmem[li - 1]);
+			OP(data, (VECTYPE)(lmem[li - 1]));
 		/* and the residue from the previous pass */
-		data += (VECTYPE)(reduction_prev_pass);
+		OP(data, (VECTYPE)(reduction_prev_pass));
 
 		if (gi < numvecels)
 			output[gi] = data;
