@@ -36,53 +36,43 @@
    e.g. a VECSIZE of 4 means that (if the datatype is int) each work-item reads
    an int4 at a time, while still reducing everythig to single ints. */
 
+#define _LASTOF2 1
+#define _LASTOF4 3
+#define _LASTOF8 7
+#define _LASTOF16 f
+
+#define VECSCAN2(acc) OP(acc.s1, acc.s0)
+#define VECSCAN4(acc) VECSCAN2(acc); \
+	OP(acc.s2, acc.s1); \
+	OP(acc.s3, acc.s2)
+#define VECSCAN8(acc) VECSCAN4(acc); \
+	OP(acc.s4, acc.s3); \
+	OP(acc.s5, acc.s4); \
+	OP(acc.s6, acc.s5); \
+	OP(acc.s7, acc.s6)
+#define VECSCAN16(acc) VECSCAN8(acc); \
+	OP(acc.s8, acc.s7); \
+	OP(acc.s9, acc.s8); \
+	OP(acc.sa, acc.s9); \
+	OP(acc.sb, acc.sa); \
+	OP(acc.sc, acc.sb); \
+	OP(acc.sd, acc.sc); \
+	OP(acc.se, acc.sd); \
+	OP(acc.sf, acc.se)
+
 /* TODO: define VECREDUCE based on OP */
-#if VECSIZE > 1
-#define VECTYPE TOK(TYPE, VECSIZE)
-#if VECSIZE == 2
-#define VECSCAN(acc) acc.y += acc.x
-#define LASTOF(acc) acc.y
-#elif VECSIZE == 4
-#define VECSCAN(acc) \
-	acc.y += acc.x; \
-	acc.z += acc.y; \
-	acc.w += acc.z
-#define LASTOF(acc) acc.w
-#elif VECSIZE == 8
-#define VECSCAN(acc) \
-	acc.s1 += acc.s0; \
-	acc.s2 += acc.s1; \
-	acc.s3 += acc.s2; \
-	acc.s4 += acc.s3; \
-	acc.s5 += acc.s4; \
-	acc.s6 += acc.s5; \
-	acc.s7 += acc.s6
-#define LASTOF(acc) acc.s7
-#elif VECSIZE == 16
-#define VECSCAN(acc) \
-	acc.s1 += acc.s0; \
-	acc.s2 += acc.s1; \
-	acc.s3 += acc.s2; \
-	acc.s4 += acc.s3; \
-	acc.s5 += acc.s4; \
-	acc.s6 += acc.s5; \
-	acc.s7 += acc.s6; \
-	acc.s8 += acc.s7; \
-	acc.s9 += acc.s8; \
-	acc.sa += acc.s9; \
-	acc.sb += acc.sa; \
-	acc.sc += acc.sb; \
-	acc.sd += acc.sc; \
-	acc.se += acc.sd; \
-	acc.sf += acc.se
-#define LASTOF(acc) acc.sf
-#else
-#error "Only vector sizes of 2, 4, 8 and 16 are supported"
-#endif
-#else
+#if VECSIZE == 1
 #define VECTYPE TYPE
 #define VECSCAN(acc) /* nothing */
 #define LASTOF(acc) acc
+#else
+#if VECSIZE > 16 || (VECSIZE & (VECSIZE - 1))
+#error "Only vector sizes of 2, 4, 8 and 16 are supported"
+#else
+#define VECTYPE TOK(TYPE, VECSIZE)
+#define VECSCAN(acc) TOK(VECSCAN, VECSIZE)(acc)
+#define LASTOF(acc) acc.TOK(s, TOK(_LASTOF, VECSIZE))
+#endif
 #endif
 
 TYPE local_scan(
@@ -94,7 +84,7 @@ TYPE local_scan(
 	const uint last_offset)
 {
 	TYPE reduction_prev_pass = 0;
-	VECTYPE data = (VECTYPE)(0);
+	VECTYPE data = (VECTYPE)(OP_NULL);
 
 	const int li = get_local_id(0);
 	const int lws = get_local_size(0);
