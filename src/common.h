@@ -11,13 +11,21 @@
 
 /* OpenCL 2.0 deprecated clCreateCommandQueue, replaced by
  * clCreateCommandQueueWithProperties, which allows additional properties
- * to be defined (namely, the queue size for device queues.
+ * to be defined (namely, the queue size for device queues).
  * However, we can't just use the 2.0+ API call as-is, since we might still
  * be running against 1.x platforms, so we'll just have to enable the use
  * of the deprecated APIs (for now).
- */
+ * This used to be done via defines such as
 
 #define CL_USE_DEPRECATED_OPENCL_2_0_APIS
+
+ * but with the new headers, we just set the target API.
+ * We target 1.1, which is the minimum version where CL_DEVICE_HOST_UNIFIED_MEMORY
+ * is available.
+ */
+
+#define CL_TARGET_OPENCL_VERSION 110
+
 
 #ifdef __APPLE__
 #include <OpenCL/cl.h>
