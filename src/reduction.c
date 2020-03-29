@@ -124,7 +124,7 @@ int main(int argc, char **argv) {
 			data_size, host_ptr, &error);
 	check_ocl_error(error, "allocating source memory buffer");
 	if (!dev_info.host_mem) {
-		error = clEnqueueWriteBuffer(queue, d_input, false, 0,
+		error = clEnqueueWriteBuffer(queue, d_input, CL_FALSE, 0,
 				data_size, data,
 				0, NULL, mem_evt);
 		check_ocl_error(error, "copying source memory buffer");
