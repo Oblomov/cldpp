@@ -1,4 +1,4 @@
-CFLAGS += -std=c99 -pedantic
+CFLAGS += -std=c99 -pedantic -g
 CPPFLAGS += -Wall -Wextra -Werror -Wno-deprecated-declarations
 LDLIBS +=-lOpenCL
 SRCDIR = src

@@ -115,11 +115,11 @@ int main(int argc, char **argv) {
 
 	cl_mem_flags host_flag = 0;
 	void *host_ptr = NULL;
-	if (dev_info.host_mem)
+	if (dev_info.host_mem) {
 		host_flag |= CL_MEM_USE_HOST_PTR;
-
-	if (dev_info.host_mem)
 		host_ptr = data;
+		puts("Using unified host memory");
+	}
 	d_input = clCreateBuffer(ctx, CL_MEM_READ_ONLY | host_flag,
 			data_size, host_ptr, &error);
 	check_ocl_error(error, "allocating source memory buffer");
@@ -178,6 +178,8 @@ int main(int argc, char **argv) {
 		clWaitForEvents(1, mem_evt);
 		GET_RUNTIME(*mem_evt, "memory upload");
 		clReleaseEvent(*mem_evt);
+		printf("Upload effective bandwidth: %11.2f GB/s\n",
+				(double)data_size/(endTime - startTime));
 	}
 
 	const size_t ws_first = options.groupsize ? options.groupsize : ws_multiple ;
