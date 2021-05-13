@@ -204,61 +204,77 @@ int main(int argc, char **argv) {
 	const cl_uint vecelements = options.elements/options.vecsize;
 	const cl_uint vecgroups = options.groups/options.vecsize;
 
-	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
-		/* First run: options.groups ws-sized work-groups */
-		group_size[0] = ws;
-		work_size[0] = group_size[0]*options.groups;
+	for (run = 0 ; options.runs == 0 || run < options.runs; ++run) {
+		for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
+			/* First run: options.groups ws-sized work-groups */
+			group_size[0] = ws;
+			work_size[0] = group_size[0]*options.groups;
 
-		int argnum = 0;
-		KERNEL_ARG(reduceKernel, d_input);
-		error = clSetKernelArg(reduceKernel, argnum++,
+			int argnum = 0;
+			KERNEL_ARG(reduceKernel, d_input);
+			error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
-		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(reduceKernel, vecelements);
-		KERNEL_ARG(reduceKernel, d_output);
+			check_ocl_error(error, "setting kernel param");
+			KERNEL_ARG(reduceKernel, vecelements);
+			KERNEL_ARG(reduceKernel, d_output);
 
-		/* launch kernel, with an event to collect profiling info */
+			/* launch kernel, with an event to collect profiling info */
 
-		clEnqueueNDRangeKernel(queue, reduceKernel,
+			clEnqueueNDRangeKernel(queue, reduceKernel,
 				1,
 				NULL, work_size, group_size,
 				0, NULL,
 				pass_evt);
 
-		/* Second run: single work-group sized as mentioned above */
-		group_size[0] = work_size[0] = ws_second;
+			/* Second run: single work-group sized as mentioned above */
+			group_size[0] = work_size[0] = ws_second;
 
-		argnum = 0;
-		KERNEL_ARG(reduceKernel, d_output);
-		error = clSetKernelArg(reduceKernel, argnum++,
+			argnum = 0;
+			KERNEL_ARG(reduceKernel, d_output);
+			error = clSetKernelArg(reduceKernel, argnum++,
 				group_size[0]*sizeof(TYPE), NULL);
-		check_ocl_error(error, "setting kernel param");
-		KERNEL_ARG(reduceKernel, vecgroups);
-		KERNEL_ARG(reduceKernel, d_output);
+			check_ocl_error(error, "setting kernel param");
+			KERNEL_ARG(reduceKernel, vecgroups);
+			KERNEL_ARG(reduceKernel, d_output);
 
-		clEnqueueNDRangeKernel(queue, reduceKernel,
+			clEnqueueNDRangeKernel(queue, reduceKernel,
 				1,
 				NULL, work_size, group_size,
 				1, pass_evt,
 				pass_evt + 1);
 
-		error = clFinish(queue); // sync on queue
-		check_ocl_error(error, "finishing queue");
+			error = clFinish(queue); // sync on queue
+			check_ocl_error(error, "finishing queue");
 
-		printf("Group size: %zu, %zu\n", ws, group_size[0]);
-		GET_RUNTIME(pass_evt[0], "Kernel pass #1");
-		GET_RUNTIME(pass_evt[1], "Kernel pass #2");
-		GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
+			if (single_run) {
+				printf("Group size: %zu, %zu\n", ws, group_size[0]);
+				GET_RUNTIME(pass_evt[0], "Kernel pass #1");
+				GET_RUNTIME(pass_evt[1], "Kernel pass #2");
+			}
+			GET_RUNTIME_DELTA(pass_evt[0], pass_evt[1], "Total");
 
-		/* count the intermediate reads and writes too in the effective bandwidth usage */
-		const size_t reduction_data_size = data_size + (2*options.groups+1)*sizeof(TYPE);
-		printf("Bandwidth: %.4g GB/s\n", (double)reduction_data_size/(endTime-startTime));
-		printf("Reduction performance: %.4g GE/s\n", (double)options.elements/(endTime-startTime));
-		printf("SUMMARY: %6zu × %u + %4zu × 1 => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
-			ws, options.groups, ws_second, (endTime - startTime)/1000000.0,
-			(double)reduction_data_size/(endTime - startTime),
-			(double)options.elements/(endTime-startTime));
-
+			/* count the intermediate reads and writes too in the effective bandwidth usage */
+			const size_t reduction_data_size = data_size + (2*options.groups+1)*sizeof(TYPE);
+			cl_ulong thisRunTime = endTime - startTime;
+			if (single_run) {
+				printf("Bandwidth: %.4g GB/s\n", (double)reduction_data_size/thisRunTime);
+				printf("Reduction performance: %.4g GE/s\n", (double)options.elements/thisRunTime);
+				printf("SUMMARY: %6zu × %u + %4zu × 1 => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
+					ws, options.groups, ws_second, thisRunTime/1000000.0,
+					(double)reduction_data_size/thisRunTime,
+					(double)options.elements/thisRunTime);
+			}
+			if (runTimes) {
+				runTimes[run] = thisRunTime;
+			}
+		}
+		if (!single_run) {
+			printf("\r%u", run);
+		}
+	}
+	if (!single_run) {
+		puts("");
+		print_stats(runTimes, options.runs);
 	}
 
 	/* copy memory down */

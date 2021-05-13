@@ -58,9 +58,14 @@ struct options_t {
 	cl_int reduction_style; // 0: interleaved; 1: blocks
 	cl_uint vecsize; // vectorized width
 	size_t groupsize;
+	cl_uint runs; // number of runs
 } options;
 
 cl_ulong startTime, endTime;
+
+cl_ulong *runTimes;
+cl_uint run;
+cl_bool single_run;
 
 /* macro to get and display the runtime associated with an event */
 #define GET_RUNTIME(evt, text) do {\
@@ -79,6 +84,7 @@ cl_ulong startTime, endTime;
 	error = clGetEventProfilingInfo(evt2, CL_PROFILING_COMMAND_END,\
 			sizeof(cl_ulong), &endTime, NULL); \
 	check_ocl_error(error, "getting profiling info"); \
+	if (single_run) \
 	printf(text " runtime: %gms\n", \
 			(double)(endTime-startTime)/1000000); \
 	} while (0);
@@ -257,6 +263,8 @@ size_t fix_po2(size_t in)
 
 void parse_options(int argc, char **argv)
 {
+	options.runs = 1;
+
 	/* skip argv[0] */
 	++argv; --argc;
 	while (argc) {
@@ -289,6 +297,9 @@ void parse_options(int argc, char **argv)
 		} else if (!strcmp(arg, "--unroll")) {
 			sscanf(*argv, "%d", &(options.unroll));
 			++argv; --argc;
+		} else if (!strcmp(arg, "--runs")) {
+			sscanf(*argv, "%u", &(options.runs));
+			++argv; --argc;
 		} else if (!strncmp(arg, "-D", 2)) {
 			clbuild_add(arg);
 		} else if (!strncmp(arg, "-", 1)) {
@@ -313,6 +324,19 @@ void parse_options(int argc, char **argv)
 		options.groupsize = newval;
 	}
 
+	/* We only support multiple runs for a fixed groupsize */
+	if (options.runs != 1 && options.groupsize == 0) {
+		fputs("multiple runs supported only if groupsize is specified\n", stderr);
+		exit(1);
+	} else if (options.runs > 1) {
+		/* We don't check if allocation fails, because
+		 * we'll check for non-null runTimes before assigning to it
+		 */
+		runTimes = calloc(options.runs, sizeof(*runTimes));
+	} else if (options.runs == 1) {
+		single_run = CL_TRUE;
+	}
+
 	if (options.vecsize == 0)
 		options.vecsize = 1;
 	else if (!is_po2(options.vecsize)) {
@@ -325,6 +349,32 @@ void parse_options(int argc, char **argv)
 		exit(1);
 	}
 
+}
+
+int less(const void *a, const void *b) {
+	cl_ulong la = *(cl_ulong*)a;
+	cl_ulong lb = *(cl_ulong*)b;
+	return la < lb ? -1 : la > lb ? 1 : 0;
+}
+
+
+/* Show some stats about the runs */
+void print_stats(cl_ulong *runTimes, cl_uint nruns) {
+	if (!runTimes) return;
+	qsort(runTimes, nruns, sizeof(*runTimes), less);
+	cl_ulong min_runtime = runTimes[0];
+	cl_ulong max_runtime = runTimes[nruns-1];
+	cl_ulong runtime_50 = nruns & 1 ? runTimes[nruns/2] :
+		(runTimes[nruns/2] + runTimes[nruns/2-1])/2;
+	/* let's not overdo for these two: */
+	cl_ulong runtime_25 = runTimes[nruns/4];
+	cl_ulong runtime_75 = runTimes[3*nruns/4];
+	printf("Runtimes min/25%%/50%%/75%%/max: %g / %g / %g / %g / %g ms\n",
+		min_runtime/1000000.0,
+		runtime_25/1000000.0,
+		runtime_50/1000000.0,
+		runtime_75/1000000.0,
+		max_runtime/1000000.0);
 }
 
 /* auxiliary buffer to read platform and device info */
