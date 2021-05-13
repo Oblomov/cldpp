@@ -18,7 +18,8 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	const cl_uint chunks_per_wg = (num_chunks + options.groups - 1)/options.groups;
 	const cl_uint els_per_wg = chunks_per_wg*chunk_size;
 
-	printf("%u wg, %zu wi/wg, %u e/wg\n", options.groups, scan_lws, els_per_wg);
+	if (single_run)
+		printf("%u wg, %zu wi/wg, %u e/wg\n", options.groups, scan_lws, els_per_wg);
 
 	error = clSetKernelArg(scan_krn[0], 0, sizeof(d_output), &d_output);
 	check_ocl_error(error, "scan#0 arg 0");
@@ -33,7 +34,8 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	error = clSetKernelArg(scan_krn[0], 5, sizeof(els_per_wg), &els_per_wg);
 	check_ocl_error(error, "scan#0 arg 5");
 
-	printf("Enqueue scan #0\n");
+	if (single_run)
+		printf("Enqueue scan #0\n");
 
 	error = clEnqueueNDRangeKernel(que, scan_krn[0], 1,
 		NULL, &gws, &scan_lws, 0, NULL, scan_evt);
@@ -45,7 +47,9 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	// with the constraint of being no larger than max_wg;
 	gws = aux_lws;
 
-	printf("Aux: %zu wi/wg\n", aux_lws);
+	if (single_run)
+		printf("Aux: %zu wi/wg\n", aux_lws);
+
 	error = clSetKernelArg(scan_krn[1], 0, sizeof(d_scan_aux), &d_scan_aux);
 	check_ocl_error(error, "scan#1 arg 0");
 	error = clSetKernelArg(scan_krn[1], 1, aux_lws*sizeof(cl_uint), NULL);
@@ -53,7 +57,8 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	error = clSetKernelArg(scan_krn[1], 2, sizeof(options.groups), &options.groups);
 	check_ocl_error(error, "scan#0 arg 2");
 
-	printf("Enqueue scan #1\n");
+	if (single_run)
+		printf("Enqueue scan #1\n");
 
 	error = clEnqueueNDRangeKernel(que, scan_krn[1], 1,
 		NULL, &gws, &aux_lws, 1, scan_evt, scan_evt + 1);
@@ -71,7 +76,8 @@ void do_scan(cl_mem d_output, cl_mem d_scan_aux, cl_mem d_input,
 	error = clSetKernelArg(scan_krn[2], 3, sizeof(els_per_wg), &els_per_wg);
 	check_ocl_error(error, "scan#2 arg 3");
 
-	printf("Enqueue scan #2\n");
+	if (single_run)
+		printf("Enqueue scan #2\n");
 
 	error = clEnqueueNDRangeKernel(que, scan_krn[2], 1,
 		NULL, &gws, &scan_lws, 1, scan_evt + 1, scan_evt + 2);
@@ -271,45 +277,64 @@ int main(int argc, char *argv[])
 	if (ws_second > max_wg_size)
 		ws_second = max_wg_size;
 
-	for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
-		do_scan(d_output, d_scan_aux, d_input, ws, ws_second);
+	for (run = 0 ; options.runs == 0 || run < options.runs; ++run) {
+		for (size_t ws = ws_first ; ws <= ws_last; ws *= 2) {
+			do_scan(d_output, d_scan_aux, d_input, ws, ws_second);
 
-		TYPE *dev_res = (TYPE *)clEnqueueMapBuffer(que, d_output, CL_TRUE,
-			CL_MAP_READ, 0, data_size,
-			1, scan_evt + 2, NULL, &error);
-		check_ocl_error(error, "map buffer total");
+			if (single_run) {
+				TYPE *dev_res = (TYPE *)clEnqueueMapBuffer(que, d_output, CL_TRUE,
+					CL_MAP_READ, 0, data_size,
+					1, scan_evt + 2, NULL, &error);
+				check_ocl_error(error, "map buffer total");
 
-		clFinish(que);
+				clFinish(que);
 
-		for (cl_uint i = 0 ; i < options.elements; ++i) {
-			if (dev_res[i] != host_res[i]) {
-				fprintf(stderr, "error @ %u: got " PTYPE " , expected " PTYPE "\n",
-					i, dev_res[i], host_res[i]);
-				break;
+				for (cl_uint i = 0 ; i < options.elements; ++i) {
+					if (dev_res[i] != host_res[i]) {
+						fprintf(stderr, "error @ %u: got " PTYPE " , expected " PTYPE "\n",
+							i, dev_res[i], host_res[i]);
+						break;
+					}
+				}
+				clEnqueueUnmapMemObject(que, d_output, dev_res, 0, NULL, NULL);
+
+
+				printf("Group size: %zu, %zu\n", ws, ws_second);
+				GET_RUNTIME(scan_evt[0], "Kernel scan #0");
+				GET_RUNTIME(scan_evt[1], "Kernel scan #1");
+				GET_RUNTIME(scan_evt[2], "Kernel scan #2");
+			} else {
+				clFinish(que);
 			}
+			GET_RUNTIME_DELTA(scan_evt[0], scan_evt[2], "Total");
+
+			/* count the intermediate reads and writes too in the effective bandwidth usage */
+			const size_t scan_data_size = 4*data_size + 3*options.groups*sizeof(TYPE);
+			cl_ulong thisRunTime = endTime - startTime;
+			if (single_run) {
+				printf("Bandwidth: %.4g GB/s\n", (double)scan_data_size/thisRunTime);
+				printf("Scan performance: %.4g GE/s\n", (double)options.elements/thisRunTime);
+				printf("SUMMARY: %6zu × %u + %4zu × 1 + %6zu × %u => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
+					ws, options.groups, ws_second, ws, options.groups - 1,
+					thisRunTime/1000000.0,
+					(double)scan_data_size/thisRunTime,
+					(double)options.elements/thisRunTime);
+			}
+			if (runTimes) {
+				runTimes[run] = thisRunTime;
+			}
+
+			clReleaseEvent(scan_evt[2]);
+			clReleaseEvent(scan_evt[1]);
+			clReleaseEvent(scan_evt[0]);
 		}
-
-		clEnqueueUnmapMemObject(que, d_output, dev_res, 0, NULL, NULL);
-
-		printf("Group size: %zu, %zu\n", ws, ws_second);
-		GET_RUNTIME(scan_evt[0], "Kernel scan #0");
-		GET_RUNTIME(scan_evt[1], "Kernel scan #1");
-		GET_RUNTIME(scan_evt[2], "Kernel scan #2");
-		GET_RUNTIME_DELTA(scan_evt[0], scan_evt[2], "Total");
-
-		/* count the intermediate reads and writes too in the effective bandwidth usage */
-		const size_t scan_data_size = 4*data_size + 3*options.groups*sizeof(TYPE);
-		printf("Bandwidth: %.4g GB/s\n", (double)scan_data_size/(endTime-startTime));
-		printf("Scan performance: %.4g GE/s\n", (double)options.elements/(endTime-startTime));
-		printf("SUMMARY: %6zu × %u + %4zu × 1 + %6zu × %u => %11.2fms | %11.2f GB/s | %11.2f GE/s\n",
-			ws, options.groups, ws_second, ws, options.groups - 1,
-			(endTime - startTime)/1000000.0,
-			(double)scan_data_size/(endTime - startTime),
-			(double)options.elements/(endTime-startTime));
-
-		clReleaseEvent(scan_evt[2]);
-		clReleaseEvent(scan_evt[1]);
-		clReleaseEvent(scan_evt[0]);
+		if (!single_run) {
+			printf("\r%u", run);
+		}
+	}
+	if (!single_run) {
+		puts("");
+		print_stats(runTimes, options.runs);
 	}
 
 	clReleaseMemObject(d_input);
